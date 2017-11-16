@@ -1,0 +1,5 @@
+SimpleJsonRest/bin/
+SimpleJsonRest/obj/
+SimpleJsonRest/*.snk
+SimpleJsonRest/Logs/
+**/*.back
