@@ -48,7 +48,7 @@ namespace SimpleJsonRest.Routing {
     object DeserializeAndInvoke() {
       try {
         var _params = PrepareParameters(_Callback.Method.GetParameters());
-        bool logIO = _Callback.Method.GetCustomAttribute<LogIOAttribute>(typeof(LogIOAttribute)) != null;
+        bool logIO = _Callback.Method.GetCustomAttribute<LogIOAttribute>() != null;
         if (logIO) Tracer.LogInput(_Callback.Method, _params);
         try {
           object ret = _Callback.Method.Invoke(_Callback.Target, _params);

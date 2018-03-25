@@ -108,17 +108,6 @@ namespace SimpleJsonRest {
     }
 
     /// <summary>
-    /// You will need to configure this handler in the Web.config file of your 
-    /// web and register it with IIS before being able to use it. For more information
-    /// see the following link: https://go.microsoft.com/?linkid=8101007
-    /// </summary>
-    static public bool RegisterWithinIIS(ConfigIIS config = null) {
-      config.UpdateWebConfigFile();
-
-      return true;
-    }
-
-    /// <summary>
     /// Parses received url
     /// </summary>
     /// <param name="url"></param>

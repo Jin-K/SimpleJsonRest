@@ -1,5 +1,7 @@
 ﻿namespace SimpleJsonRest.Utils {
   public class ConfigIIS : IConfig {
+
+    #region Constants
     /// <summary>
     /// Default port for HTTP
     /// </summary>
@@ -15,11 +17,16 @@
     /// </summary>
     public const string DEFAULT_SERVER = "localhost";
 
+    internal const string DEFAULT_LOG_PATH = "Logs\\log.txt";
+    #endregion
+
+    #region Private members
     HandlerConfig innerConfig;
-
     int portToUse;
-    string serverToUse;
+    string serverToUse, locationToUse;
+    #endregion
 
+    #region Constructors
     /// <summary>
     /// Create a new config for IIS
     /// </summary>
@@ -37,8 +44,9 @@
     public ConfigIIS(int port, string server = DEFAULT_SERVER) {
       Construct(server, port);
     }
+    #endregion
 
-
+    #region Accessible properties
     /// <summary>
     /// Full path of the assembly (.dll or .exe) containing the specified service
     /// </summary>
@@ -78,6 +86,16 @@
       set { innerConfig.EndPoint = value.StartsWith("/") ? value : "/" + value; }
     }
 
+    /// <summary>
+    /// Location for IIS web folder (where /web.config and /bin/SimpleJsonRest.dll will be placed)
+    /// </summary>
+    public string Location {
+      get { return locationToUse; }
+      set { locationToUse = value; }
+    }
+    #endregion
+
+    #region Methods
     void Construct(string server, int port) {
       if (port == DEFAULT_PORT_SSL) throw new System.Exception("Go fuck yourself with your SSL");
       innerConfig = new HandlerConfig();
@@ -90,13 +108,92 @@
       innerConfig.AssemblyPath = callingMethod.DeclaringType.Assembly.CodeBase;
     }
 
-    internal void UpdateWebConfigFile() {
-      throw new System.Exception("Not implemented yet!");
-      var assembly = System.Reflection.Assembly.LoadFrom(AssemblyPath);
-      if (assembly != null) {
-        var registrationServices = new System.Runtime.InteropServices.RegistrationServices();
-        var result = registrationServices.RegisterAssembly(assembly, System.Runtime.InteropServices.AssemblyRegistrationFlags.SetCodeBase);
-      }
+    internal bool UpdateWebConfigFile() {
+      throw new System.NotImplementedException("Sorry");
     }
+
+    /// <summary>
+    /// Create website folder and register website in IIS for this config
+    /// </summary>
+    /// <returns></returns>
+    public bool RegisterInIIS() {
+      return RegisterInIIS(this);
+    }
+    
+    /// <summary>
+    /// Create website folder and register website in IIS with specified values (check SimpleJsonRest.Utils.ConfigIIS's accessible properties)
+    /// Default values for "server" and "port" are respectively "localhost" and 80
+    /// </summary>
+    /// <returns></returns>
+    static public bool RegisterInIIS(string service, string endpoint, string location, string logPath = ConfigIIS.DEFAULT_LOG_PATH) {
+      return RegisterInIIS(ConfigIIS.DEFAULT_SERVER, ConfigIIS.DEFAULT_PORT, service, endpoint, location, logPath);
+    }
+    
+    /// <summary>
+    /// Create website folder and register website in IIS with specified values (check SimpleJsonRest.Utils.ConfigIIS's accessible properties)
+    /// </summary>
+    /// <returns></returns>
+    static public bool RegisterInIIS(string server, int port, string service, string endpoint, string location, string logPath = ConfigIIS.DEFAULT_LOG_PATH) {
+      var config = new ConfigIIS(server, port) {
+        Service = service,
+        EndPoint = endpoint,
+        Location = location,
+        LogPath = logPath
+      };
+      return RegisterInIIS(config);
+    }
+
+    /// <summary>
+    /// Create website folder and register website in IIS with specified config
+    /// </summary>
+    /// <returns></returns>
+    static public bool RegisterInIIS(ConfigIIS config) {
+      if (config.LogPath == null) config.LogPath = DEFAULT_LOG_PATH;
+
+      var ret = false;
+      // Started implementation
+      var destFolder = config.Location;
+      
+      if (!CheckCreate(destFolder)) return false;
+      if (!CreateWebConfigFile($"{destFolder}\\web.config") ) return false;
+
+      destFolder += "\\bin";
+
+      if (!CheckCreate(destFolder)) return false;
+      var uriBuilder = new System.UriBuilder(System.Reflection.Assembly.GetExecutingAssembly().CodeBase);
+      var uriPath = System.Uri.UnescapeDataString(uriBuilder.Path);
+      var dllPath = $"{System.IO.Path.GetDirectoryName(uriPath)}\\SimpleJsonRest.dll";
+      var destFile = $"{destFolder}\\SimpleJsonRest.dll";
+      try {
+        System.IO.File.Copy(dllPath, destFile);
+      }
+      catch (System.UnauthorizedAccessException) {
+        Tracer.Logger.Error( $"No access to write \"{destFile}\"" );
+        return false;
+      }
+
+      return ret && config.UpdateWebConfigFile();
+    }
+
+    static bool CheckCreate(string directoryPath) {
+      if (!System.IO.Directory.Exists(directoryPath))
+        // TODO: Checker droits de créer un dossier ici ? au lieu de capturer une très probable exception
+        try {
+          System.IO.Directory.CreateDirectory(directoryPath);
+        }
+        catch (System.UnauthorizedAccessException e) {
+          Tracer.Logger.Error( $@"Exception in ConfigIIS.CheckCreate for this folder: ""{directoryPath}""", e);
+          return false;
+        }
+
+      return true;
+    }
+
+    static bool CreateWebConfigFile( string destinationFile ) {
+      // TODO: create xml structure and write stream to file, or use a standard web.config stored somewhere
+      return true;
+    }
+    #endregion
+
   }
 }

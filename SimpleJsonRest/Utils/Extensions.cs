@@ -66,7 +66,7 @@ namespace SimpleJsonRest.Utils {
     // Depuis que j'ai passé le truk à .NET framework 4 au lieu de .NET Framework 4.5
     // Plusieurs fonctions n'étaient plus définies
     // TODO: Voir s'il y a moyen de compiler (à l'avenir) pour plusieurs version du framework avec les statements #if NET20, NET30, etc
-    public static T GetCustomAttribute<T>(this System.Reflection.MethodInfo method, Type type) where T : Attribute {
+    public static T GetCustomAttribute<T>(this System.Reflection.MethodInfo method) where T : Attribute {
       object[] attributes = method.GetCustomAttributes(false);
       return attributes.OfType<T>().FirstOrDefault();
     }

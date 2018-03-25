@@ -4,6 +4,7 @@ using System.Configuration;
 namespace SimpleJsonRest.Utils {
   internal class HandlerConfig : ConfigurationSection, IConfig {
 
+    #region Config properties
     [ConfigurationProperty("assembly", IsRequired = false)]
     public string AssemblyPath {
       get { return (string)this["assembly"]; }
@@ -27,17 +28,23 @@ namespace SimpleJsonRest.Utils {
       get { return (string)this["endpoint"]; }
       set { this["endpoint"] = value; }
     }
+    #endregion
 
+    #region Private members
     /// <summary>
     /// Service type object supposed to be found
     /// </summary>
     Type serviceType;
+    #endregion
 
+    #region Properties
     /// <summary>
     /// Found service type
     /// </summary>
     internal Type ServiceType => serviceType ?? SearchServiceType();
+    #endregion
 
+    #region Private methods
     Type SearchServiceType() {
       var zenginsAssembly = System.Reflection.Assembly.LoadFrom(AssemblyPath);
       var types = CollecTypes();
@@ -69,5 +76,7 @@ namespace SimpleJsonRest.Utils {
 
       return typesList.ToArray();
     }
+    #endregion
+
   }
 }
