@@ -1,21 +1,21 @@
 ﻿using System;
 using System.Configuration;
 
-namespace SimpleHandler.Utils {
+namespace SimpleJsonRest.Utils {
   internal class HandlerConfig : ConfigurationSection, IConfig {
-    
+
     [ConfigurationProperty("assembly", IsRequired = false)]
     public string AssemblyPath {
       get { return (string)this["assembly"]; }
       set { this["assembly"] = value; }
     }
-    
+
     [ConfigurationProperty("service", IsRequired = true)]
     public string Service {
       get { return (string)this["service"]; }
       set { this["service"] = value; }
     }
-    
+
     [ConfigurationProperty("logPath", IsRequired = true)]
     public string LogPath {
       get { return (string)this["logPath"]; }

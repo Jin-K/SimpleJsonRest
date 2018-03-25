@@ -1,21 +1,18 @@
-﻿using System;
-using System.Web;
-using System.Web.Configuration;
-using System.Web.SessionState;
+﻿using SimpleJsonRest.Utils;
+using System;
 using System.Linq;
-using SimpleHandler.Routing;
-using SimpleHandler.Utils;
+using System.Web;
 
-namespace SimpleHandler {
-  public class Handler : IHttpHandler, IRequiresSessionState {
+namespace SimpleJsonRest {
+  public class Handler : IHttpHandler, System.Web.SessionState.IRequiresSessionState {
 
     public static HandlerState State => HandlerState.Undefined;
 
     static IAuthentifiedService service;
     IAuthentifiedService Service => service ?? LoadService();
 
-    static Route[] router;
-    Route[] Router => router ?? PrepareNLoadServiceRoutes(Service);
+    static Routing.Route[] router;
+    Routing.Route[] Router => router ?? PrepareNLoadServiceRoutes(Service);
 
     public bool IsReusable {
       // Return false in case your Managed Handler cannot be reused for another request.
@@ -23,17 +20,20 @@ namespace SimpleHandler {
       get { return true; }
     }
 
-
     public void ProcessRequest(HttpContext context) {
       var url_part = GetUrl(context.Request.RawUrl, context.Request.ApplicationPath);
 
       // Pour tests avec page html
       if (url_part.ToLower().EndsWith(".html") || url_part.ToLower().EndsWith(".htm")) {
-        var file = System.IO.Directory.GetFiles(context.Server.MapPath("~")).FirstOrDefault(fN => fN.ToLower().Contains(url_part.Substring(1)));
-        if (file != null) {
-          context.Response.ContentType = "text/html";
-          context.Response.Write(System.IO.File.ReadAllText(file));
-          context.Response.End();
+        var files = System.IO.Directory.GetFiles(context.Server.MapPath("~"));
+        for (var c = 0; c < files.Length; c++) {
+          var file = files[c].ToLower();
+          if (file.Contains(url_part.Substring(1))) {
+            context.Response.ContentType = "text/html";
+            context.Response.Write(System.IO.File.ReadAllText(file));
+            context.Response.End();
+            break;
+          }
         }
       }
 
@@ -97,14 +97,15 @@ namespace SimpleHandler {
 
         if (json_response != null) context.Reply(json_response);
 
-        int cross_domain;
-        if (WebConfigurationManager.AppSettings["cross_domain"] != null && int.TryParse(WebConfigurationManager.AppSettings["cross_domain"], out cross_domain) && Convert.ToBoolean(cross_domain))
-          context.Response.AppendHeader("Access-Control-Allow-Origin", "*");
+        if (
+          System.Web.Configuration.WebConfigurationManager.AppSettings["cross_domain"] != null &&
+          int.TryParse(System.Web.Configuration.WebConfigurationManager.AppSettings["cross_domain"], out int cross_domain) &&
+          Convert.ToBoolean(cross_domain)
+        ) context.Response.AppendHeader("Access-Control-Allow-Origin", "*");
 
         context.Response.End();
       }
     }
-
 
     /// <summary>
     /// You will need to configure this handler in the Web.config file of your 
@@ -117,12 +118,12 @@ namespace SimpleHandler {
       return true;
     }
 
-    static public bool RegisterWithinIIS2(ConfigIIS config = null) {
-      if (config == null) return false;
-      config.UpdateWebConfigFile();
-      return true;
-    }
-
+    /// <summary>
+    /// Parses received url
+    /// </summary>
+    /// <param name="url"></param>
+    /// <param name="appPath"></param>
+    /// <returns></returns>
     string GetUrl(string url, string appPath) {
       if (appPath.Length > 1 && appPath.Trim() != string.Empty) {
         if (appPath.EndsWith("/")) appPath = appPath.Remove(appPath.Length - 1);
@@ -134,12 +135,12 @@ namespace SimpleHandler {
       return url;
     }
 
-    Route[] PrepareNLoadServiceRoutes(IAuthentifiedService service) {
+    Routing.Route[] PrepareNLoadServiceRoutes(IAuthentifiedService service) {
       var type = service.GetType();
       router = (
           from m in type.GetMethods()
           where m.IsPublic && m.DeclaringType == type
-          select new Route(m, service)
+          select new Routing.Route(m, service)
       ).ToArray();
       return router;
     }
@@ -151,10 +152,10 @@ namespace SimpleHandler {
     IAuthentifiedService LoadService() {
       Utils.HandlerConfig config = null;
       try {
-        config = WebConfigurationManager.GetSection("json4Rest") as Utils.HandlerConfig;
+        config = System.Web.Configuration.WebConfigurationManager.GetSection("json4Rest") as Utils.HandlerConfig;
       }
       catch (Exception e) {
-        throw new HandlerException($"Error with SimpleHandler's config section: {e.Message}");
+        throw new HandlerException($"Error with SimpleJsonRest's config section: {e.Message}");
       }
       if (config == null) throw new HandlerException("No Service config value found", System.Net.HttpStatusCode.NotImplemented);
       return Handler.service = Activator.CreateInstance(config.ServiceType) as IAuthentifiedService;
@@ -162,7 +163,7 @@ namespace SimpleHandler {
   }
 
   /// <summary>
-  /// Defines SimpleHandler behavior
+  /// Defines SimpleJsonRest behavior
   /// </summary>
   public enum HandlerState {
     StartPointIsIIS,

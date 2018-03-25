@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Web;
-
-namespace SimpleHandler.Utils {
+﻿namespace SimpleJsonRest.Utils {
   public class ConfigIIS : IConfig {
     /// <summary>
     /// Default port for HTTP
@@ -24,7 +19,7 @@ namespace SimpleHandler.Utils {
 
     int portToUse;
     string serverToUse;
-    
+
     /// <summary>
     /// Create a new config for IIS
     /// </summary>
@@ -43,7 +38,7 @@ namespace SimpleHandler.Utils {
       Construct(server, port);
     }
 
-    
+
     /// <summary>
     /// Full path of the assembly (.dll or .exe) containing the specified service
     /// </summary>
@@ -84,7 +79,7 @@ namespace SimpleHandler.Utils {
     }
 
     void Construct(string server, int port) {
-      if (port == DEFAULT_PORT_SSL) throw new Exception("Go fuck yourself with your SSL");
+      if (port == DEFAULT_PORT_SSL) throw new System.Exception("Go fuck yourself with your SSL");
       innerConfig = new HandlerConfig();
 
       serverToUse = server;
@@ -96,13 +91,12 @@ namespace SimpleHandler.Utils {
     }
 
     internal void UpdateWebConfigFile() {
-      throw new Exception("mdr");
+      throw new System.Exception("Not implemented yet!");
       var assembly = System.Reflection.Assembly.LoadFrom(AssemblyPath);
       if (assembly != null) {
         var registrationServices = new System.Runtime.InteropServices.RegistrationServices();
         var result = registrationServices.RegisterAssembly(assembly, System.Runtime.InteropServices.AssemblyRegistrationFlags.SetCodeBase);
       }
-
     }
   }
 }

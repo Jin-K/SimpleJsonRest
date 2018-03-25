@@ -1,7 +1,3 @@
-﻿using System;
-
-namespace SimpleHandler {
-    internal class SerializationException : Exception {
-
-    }
+﻿namespace SimpleJsonRest {
+  internal class SerializationException : System.Exception { }
 }

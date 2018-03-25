@@ -1,12 +1,6 @@
-﻿using System;
-using System.Web;
-
-namespace SimpleHandler {
-    public class AuthenticateAttribute : Attribute {
-        internal bool IsConnected {
-            get {
-                return HttpContext.Current.Session["Logged"] != null && (bool)HttpContext.Current.Session["Logged"];
-            }
-        }
-    }
+﻿
+namespace SimpleJsonRest {
+  public class AuthenticateAttribute : System.Attribute {
+    internal bool IsConnected => System.Web.HttpContext.Current.Session["Logged"] != null && (bool) System.Web.HttpContext.Current.Session["Logged"];
+  }
 }
