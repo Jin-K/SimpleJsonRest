@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace SimpleJsonRest {
+namespace SimpleHandler {
     internal class SerializationException : Exception {
 
     }

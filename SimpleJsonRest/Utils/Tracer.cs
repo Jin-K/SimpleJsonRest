@@ -8,12 +8,10 @@ using System.Linq;
 using System.Reflection;
 using System.Web.Configuration;
 
-namespace SimpleJsonRest.Utils {
+namespace SimpleHandler.Utils {
     public static class Tracer {
         static readonly ILog log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
-        internal static ILog Logger {
-            get { return log; }
-        }
+        internal static ILog Logger => log;
 
         static Tracer() {
             SetupLog4Net();
@@ -21,12 +19,12 @@ namespace SimpleJsonRest.Utils {
         }
 
         static void SetupLog4Net() {
-            Config config = null;
+            Utils.HandlerConfig config = null;
             try {
-                config = WebConfigurationManager.GetSection("json4Rest") as Config;
+                config = WebConfigurationManager.GetSection("json4Rest") as Utils.HandlerConfig;
             }
             catch (Exception e) {
-                throw new HandlerException($"Error with SimpleJsonRest's config section: {e.Message}", System.Net.HttpStatusCode.NotImplemented);
+                throw new HandlerException($"Error with SimpleHandler's config section: {e.Message}", System.Net.HttpStatusCode.NotImplemented);
             }
 
             Hierarchy hierarchy = (Hierarchy)LogManager.GetRepository();
@@ -77,12 +75,22 @@ namespace SimpleJsonRest.Utils {
             string methodNameFormatted = GetFormattedMethodName(method, $" returned ({returnObject})");
             LogIO(methodNameFormatted, MethodInvokationDirection.Output, paramz);
         }
-
+        
+        /// <summary>
+        /// Log a message with Tracer.
+        /// level should be between 1 and 3
+        /// </summary>
+        /// <param name="message"></param>
+        /// <param name="level">
+        /// test
+        /// </param>
         public static void Log(string message, int level = 1) {
-            int logLevel = int.Parse(WebConfigurationManager.AppSettings["LOG_LEVEL"]);
-            if (logLevel < level) return;
-
-            Logger.Info(message);
+            int logLevel;
+            
+            string logLvlString = WebConfigurationManager.AppSettings["LOG_LEVEL"];
+            logLevel = logLvlString == null ? 3 : int.Parse(logLvlString);
+            
+            if (logLevel >= level) Logger.Info(message);
         }
     }
 

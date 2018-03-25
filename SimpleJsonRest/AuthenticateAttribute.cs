@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Web;
 
-namespace SimpleJsonRest {
+namespace SimpleHandler {
     public class AuthenticateAttribute : Attribute {
         internal bool IsConnected {
             get {

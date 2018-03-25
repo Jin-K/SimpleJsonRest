@@ -1,6 +1,6 @@
 ﻿using System.Net;
 
-namespace SimpleJsonRest {
+namespace SimpleHandler {
     internal class HandlerException : WebException {
         string _message;
         public new string Message {

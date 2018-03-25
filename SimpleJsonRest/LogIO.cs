@@ -1,5 +1,5 @@
 ﻿using System;
 
-namespace SimpleJsonRest.Utils {
+namespace SimpleHandler.Utils {
     public class LogIOAttribute : Attribute { }
 }

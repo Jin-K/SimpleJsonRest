@@ -4,12 +4,12 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("SimpleJsonRest")]
+[assembly: AssemblyTitle("SimpleHandler")]
 [assembly: AssemblyDescription("Angel Munoz's simple ASP.NET Handler")]
 [assembly: AssemblyConfiguration("release")]
-[assembly: AssemblyCompany("Efficy CRM")]
-[assembly: AssemblyProduct("SimpleJsonRest")]
-[assembly: AssemblyCopyright("Copyright ©  2017")]
+[assembly: AssemblyCompany("Angel")]
+[assembly: AssemblyProduct("SimpleHandler")]
+[assembly: AssemblyCopyright("Copyright © 2017-2018")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("fr-BE")]
 
