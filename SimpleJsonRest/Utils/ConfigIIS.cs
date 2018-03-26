@@ -168,7 +168,7 @@
         System.IO.File.Copy(dllPath, destFile);
       }
       catch (System.UnauthorizedAccessException) {
-        Tracer.Logger.Error( $"No access to write \"{destFile}\"" );
+        Tracer.Log( $"No access to write \"{destFile}\"", MessageVerbosity.Error );
         return false;
       }
 
@@ -182,7 +182,7 @@
           System.IO.Directory.CreateDirectory(directoryPath);
         }
         catch (System.UnauthorizedAccessException e) {
-          Tracer.Logger.Error( $@"Exception in ConfigIIS.CheckCreate for this folder: ""{directoryPath}""", e);
+          Tracer.Log( $@"Exception in ConfigIIS.CheckCreate for this folder: ""{directoryPath}""", e );
           return false;
         }
 

@@ -67,9 +67,11 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AuthenticateAttribute.cs" />
-    <Compile Include="LoginResponse.cs" />
+    <Compile Include="Core\EventsDispatcher.cs" />
+    <Compile Include="Models\LoginResponse.cs" />
+    <Compile Include="Utils\Enums.cs" />
     <Compile Include="Utils\LogIO.cs" />
-    <Compile Include="Models\SerializationException.cs" />
+    <Compile Include="SerializationException.cs" />
     <Compile Include="Utils\ConfigIIS.cs" />
     <Compile Include="Utils\Extensions.cs" />
     <Compile Include="FaultException.cs" />

@@ -2,13 +2,24 @@
 using System.Linq;
 
 namespace SimpleJsonRest.Utils {
-  public static class Tracer {
-    static readonly log4net.ILog log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
-    internal static log4net.ILog Logger => log;
+  internal delegate void MessageHandler(string errorMessage);
 
-    static Tracer() {
-      SetupLog4Net();
-      Logger.Info("log4net configured");
+  public class Tracer {
+    static internal event MessageHandler OnTracerError;
+
+    static bool loadedWithoutError = false;
+
+    /// <summary>
+    /// Won't trace messages if isn't true
+    /// </summary>
+    static public bool Loaded => loadedWithoutError;
+
+    static readonly log4net.ILog log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
+    static log4net.ILog Logger {
+      get {
+        if (log == null) SetupLog4Net();
+        return log;
+      }
     }
 
     static void SetupLog4Net() {
@@ -16,7 +27,7 @@ namespace SimpleJsonRest.Utils {
       try {
         config = System.Web.Configuration.WebConfigurationManager.GetSection("json4Rest") as Utils.HandlerConfig;
       }
-      catch (System.Exception e) {
+      catch (Exception e) {
         throw new HandlerException($"Error with SimpleJsonRest's config section: {e.Message}", System.Net.HttpStatusCode.NotImplemented);
       }
 
@@ -27,23 +38,31 @@ namespace SimpleJsonRest.Utils {
       patternLayout.ActivateOptions();
 
       log4net.Appender.RollingFileAppender roller = new log4net.Appender.RollingFileAppender();
-      roller.File = config.LogPath;
-      roller.AppendToFile = true;
-      roller.RollingStyle = log4net.Appender.RollingFileAppender.RollingMode.Size;
-      roller.DatePattern = "yyyy.MM.dd";
-      roller.StaticLogFileName = true;
-      roller.MaxSizeRollBackups = 10;
-      roller.MaximumFileSize = "1MB";
-      roller.Layout = patternLayout;
-      roller.ActivateOptions();
-      hierarchy.Root.AddAppender(roller);
+      try {
+        roller.File = config.LogPath;
+        roller.AppendToFile = true;
+        roller.RollingStyle = log4net.Appender.RollingFileAppender.RollingMode.Size;
+        roller.DatePattern = "yyyy.MM.dd";
+        roller.StaticLogFileName = true;
+        roller.MaxSizeRollBackups = 10;
+        roller.MaximumFileSize = "1MB";
+        roller.Layout = patternLayout;
+        roller.ActivateOptions();
+        hierarchy.Root.AddAppender(roller);
 
-      log4net.Appender.MemoryAppender memory = new log4net.Appender.MemoryAppender();
-      memory.ActivateOptions();
-      hierarchy.Root.AddAppender(memory);
+        log4net.Appender.MemoryAppender memory = new log4net.Appender.MemoryAppender();
+        memory.ActivateOptions();
+        hierarchy.Root.AddAppender(memory);
 
-      hierarchy.Root.Level = log4net.Core.Level.Debug;
-      hierarchy.Configured = true;
+        hierarchy.Root.Level = log4net.Core.Level.Debug;
+        hierarchy.Configured = true;
+
+        loadedWithoutError = true;
+        Log( "log4net configured", MessageVerbosity.Info );
+      }
+      catch (Exception e) {
+        OnTracerError( e.Message );
+      }
     }
 
     static string GetFormattedMethodName(System.Reflection.MethodInfo method, string end = "") {
@@ -77,13 +96,51 @@ namespace SimpleJsonRest.Utils {
     /// <param name="level">
     /// test
     /// </param>
-    public static void Log(string message, int level = 1) {
+    [Obsolete("Use Log(string message, MessageVerbosity type)")]
+    public static void Log(string message, uint level) {
       int logLevel;
 
       string logLvlString = System.Web.Configuration.WebConfigurationManager.AppSettings["LOG_LEVEL"];
-      logLevel = logLvlString == null ? 3 : int.Parse(logLvlString);
+      logLevel = logLvlString == null ? 3 : int.Parse( logLvlString );
 
-      if (logLevel >= level) Logger.Info(message);
+      if (level > 0 && logLevel >= level) Logger.Info( message );
+    }
+
+    /// <summary>
+    /// Log a message and an exception (message + stack trace)
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="exception"></param>
+    public static void Log(string message, Exception exception) {
+      InnerLog( message, MessageVerbosity.Error, System.Reflection.Assembly.GetCallingAssembly() == typeof( Tracer ).Assembly, exception );
+    }
+
+    /// <summary>
+    /// Log a message with verbosity specification
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="type"></param>
+    public static void Log(string message, MessageVerbosity type = MessageVerbosity.Info) {
+      InnerLog( message, type, System.Reflection.Assembly.GetCallingAssembly() == typeof( Tracer ).Assembly );
+    }
+
+    static void InnerLog(string message, MessageVerbosity type, bool isInnerCall, Exception e = null) {
+      if (Loaded) {
+        switch(type) {
+          case MessageVerbosity.Debug:
+            Tracer.Logger.Debug( message );
+            break;
+          case MessageVerbosity.Info:
+            Tracer.Logger.Info( message );
+            break;
+          case MessageVerbosity.Error:
+            if (isInnerCall) OnTracerError( message );
+            if (e != null)  Tracer.Logger.Error( message, e );
+            else            Tracer.Logger.Error( message );
+            break;
+        }
+      }
+      else OnTracerError( "Tracer is not loaded" );
     }
   }
 

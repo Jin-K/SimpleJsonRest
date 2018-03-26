@@ -57,13 +57,13 @@ namespace SimpleJsonRest.Routing {
         }
         catch (System.Reflection.TargetInvocationException e) {
           // TODO : Traitement érreur venant du service appelé
-          Tracer.Logger.Error("SimpleJsonRest.Routing.Route.DeserializeAndInvoke", e);
+          Tracer.Log("SimpleJsonRest.Routing.Route.DeserializeAndInvoke", e);
           throw e.InnerException;
         }
       }
       catch (Exception e) {
         // TODO : Érreur dans la déserialisation ?
-        Tracer.Logger.Error("SimpleJsonRest.Routing.Route.DeserializeAndInvoke", e);
+        Tracer.Log("SimpleJsonRest.Routing.Route.DeserializeAndInvoke", e);
         throw;
       }
     }
@@ -80,7 +80,7 @@ namespace SimpleJsonRest.Routing {
           obj = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(jsonString);
         }
         catch (Newtonsoft.Json.JsonReaderException e) {
-          Tracer.Logger.Error($"Ne sait pas déserializer le json entrant : {{{Environment.NewLine}{jsonString}{Environment.NewLine}}}", e);
+          Tracer.Log($"Ne sait pas déserializer le json entrant : {{{Environment.NewLine}{jsonString}{Environment.NewLine}}}", e);
           throw new HandlerException("Input stream isn't real json", System.Net.HttpStatusCode.BadRequest);
         }
       }

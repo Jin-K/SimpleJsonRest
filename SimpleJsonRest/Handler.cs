@@ -39,7 +39,7 @@ namespace SimpleJsonRest {
 
       var ip = context.Request.ServerVariables["REMOTE_ADDR"];
 
-      Tracer.Logger.Info($" --- || Start request || {ip} || path: {url_part} || --- {DateTime.Now.ToString()}    ---     <--");
+      Tracer.Log($" --- || Start request || {ip} || path: {url_part} || --- {DateTime.Now.ToString()}    ---     <--");
 
       context.Response.Clear();
 
@@ -50,7 +50,7 @@ namespace SimpleJsonRest {
 
         foreach (var route in Router)
           if (route.Check(url_part)) {
-            Tracer.Logger.Info("route prise : " + route.Path);
+            Tracer.Log("route prise : " + route.Path);
             json_response = route.Execute();
             return;
           }
@@ -90,10 +90,10 @@ namespace SimpleJsonRest {
             break;
         }
 
-        Tracer.Logger.Error("IDPHandler.ProcessRequest " + e);
+        Tracer.Log("IDPHandler.ProcessRequest " + e);
       }
       finally {
-        Tracer.Logger.Info($" --- || End request || {ip} || path: {url_part} || --- {DateTime.Now.ToString()}     ---     <--");
+        Tracer.Log($" --- || End request || {ip} || path: {url_part} || --- {DateTime.Now.ToString()}     ---     <--");
 
         if (json_response != null) context.Reply(json_response);
 
