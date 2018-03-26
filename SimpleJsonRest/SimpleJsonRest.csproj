@@ -69,7 +69,7 @@
     <Compile Include="AuthenticateAttribute.cs" />
     <Compile Include="LoginResponse.cs" />
     <Compile Include="Utils\LogIO.cs" />
-    <Compile Include="SerializationException.cs" />
+    <Compile Include="Models\SerializationException.cs" />
     <Compile Include="Utils\ConfigIIS.cs" />
     <Compile Include="Utils\Extensions.cs" />
     <Compile Include="FaultException.cs" />

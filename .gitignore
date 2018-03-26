@@ -3,3 +3,4 @@ SimpleJsonRest/obj/
 SimpleJsonRest/*.snk
 SimpleJsonRest/Logs/
 **/*.back
+.vs/
