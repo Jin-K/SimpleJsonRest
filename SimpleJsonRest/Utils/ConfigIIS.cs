@@ -152,14 +152,15 @@
 
       var ret = false;
       // Started implementation
-      var destFolder = config.Location;
+      var destFolder = new System.IO.DirectoryInfo(config.Location);
       
-      if (!CheckCreate(destFolder)) return false;
+      //if (!CheckCreate(destFolder)) return false;
+      if (!destFolder.CheckWriteAccessAndCreate( out string error )) return false;
       if (!CreateWebConfigFile($"{destFolder}\\web.config") ) return false;
 
-      destFolder += "\\bin";
-
-      if (!CheckCreate(destFolder)) return false;
+      destFolder = new System.IO.DirectoryInfo( config.Location + "\\bin" );
+      
+      if (!destFolder.CheckWriteAccessAndCreate( out error )) return false;
       var uriBuilder = new System.UriBuilder(System.Reflection.Assembly.GetExecutingAssembly().CodeBase);
       var uriPath = System.Uri.UnescapeDataString(uriBuilder.Path);
       var dllPath = $"{System.IO.Path.GetDirectoryName(uriPath)}\\SimpleJsonRest.dll";

@@ -5,6 +5,9 @@ namespace SimpleJsonRest.Utils {
   internal delegate void MessageHandler(string errorMessage);
 
   public class Tracer {
+    const ushort MAX_ATTEMPTS = 3;
+    static ushort totalAttemps = 0;
+
     static internal event MessageHandler OnTracerError;
 
     static bool loadedWithoutError = false;
@@ -12,7 +15,12 @@ namespace SimpleJsonRest.Utils {
     /// <summary>
     /// Won't trace messages if isn't true
     /// </summary>
-    static public bool Loaded => loadedWithoutError;
+    static public bool Loaded {
+      get {
+        if (!loadedWithoutError && totalAttemps < MAX_ATTEMPTS) SetupLog4Net();
+        return loadedWithoutError;
+      }
+    }
 
     static readonly log4net.ILog log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
     static log4net.ILog Logger {
@@ -23,6 +31,7 @@ namespace SimpleJsonRest.Utils {
     }
 
     static void SetupLog4Net() {
+      totalAttemps++;
       Utils.HandlerConfig config = null;
       try {
         config = System.Web.Configuration.WebConfigurationManager.GetSection("json4Rest") as Utils.HandlerConfig;
@@ -61,7 +70,7 @@ namespace SimpleJsonRest.Utils {
         Log( "log4net configured", MessageVerbosity.Info );
       }
       catch (Exception e) {
-        OnTracerError( e.Message );
+        OnTracerError?.Invoke( e.Message );
       }
     }
 
@@ -134,13 +143,13 @@ namespace SimpleJsonRest.Utils {
             Tracer.Logger.Info( message );
             break;
           case MessageVerbosity.Error:
-            if (isInnerCall) OnTracerError( message );
+            if (isInnerCall) OnTracerError?.Invoke( message );
             if (e != null)  Tracer.Logger.Error( message, e );
             else            Tracer.Logger.Error( message );
             break;
         }
       }
-      else OnTracerError( "Tracer is not loaded" );
+      else OnTracerError?.Invoke( "Tracer is not loaded" );
     }
   }
 
