@@ -206,8 +206,143 @@
       return true;
     }
 
-    static bool CreateWebConfigFile( string destinationFile ) {
-      // TODO: create xml structure and write stream to file, or use a standard web.config stored somewhere
+    private bool CreateWebConfigFile( string destinationFile ) {
+      try {
+        // If file don't exists
+        if (!System.IO.File.Exists(destinationFile)) {
+          
+          // Create the file to write to.
+          using(System.IO.StreamWriter writer = System.IO.File.CreateText(destinationFile)) {
+
+            // convert Assembly Path
+            var assemblyPath = AssemblyPath;
+            assemblyPath = assemblyPath.StartsWith( "file:///" ) ? assemblyPath.Substring( 8 ) : assemblyPath;
+            assemblyPath = assemblyPath.Replace( "/", "\\\\" );
+
+            // Append lines
+            writer.WriteLine( "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n" );
+            writer.WriteLine( "<!--" );
+            writer.WriteLine( "  For more information on how to configure your ASP.NET application, please visit" );
+            writer.WriteLine( "  https://go.microsoft.com/fwlink/?LinkId=169433\n  -->\n\n" );
+            writer.WriteLine( "<configuration>\n" );
+            writer.WriteLine( "  <configSections>" );
+            writer.WriteLine( "    <section name=\"json4Rest\" type=\"SimpleJsonRest.Utils.HandlerConfig\" allowLocation=\"true\" allowDefinition=\"Everywhere\" />" );
+            writer.WriteLine( "  </configSections>" );
+            writer.WriteLine($"  <json4Rest assembly=\"{assemblyPath}\" service=\"{Service}\" logPath=\"{LogPath}\" />" );
+            writer.WriteLine( "  <system.webServer>" );
+            writer.WriteLine( "    <handlers>" );
+            writer.WriteLine( "      <add name=\"Handler\" path=\"*\" verb=\"*\" type=\"SimpleJsonRest.Handler\" />" );
+            writer.WriteLine( "    </handlers>" );
+            writer.WriteLine( "  </system.webServer>\n" );
+            writer.WriteLine( "</configuration>" );
+          }
+        }
+
+        return true;
+      }
+      catch {
+        return false;
+      }
+    }
+
+    private bool CreateIISEntry() {
+      Microsoft.Web.Administration.ServerManager iisManager = null;
+      try {
+        iisManager = new Microsoft.Web.Administration.ServerManager();
+        iisManager.Sites.Add( EndPoint, "http", "*:80", Location );
+        iisManager.CommitChanges();
+      }
+      catch {
+        return false;
+      }
+      finally {
+        if (iisManager != null) iisManager.Dispose();
+      }
+
+      return true;
+    }
+
+    private bool CreateIISEntry2() {
+      try {
+        using(Microsoft.Web.Administration.ServerManager m = new Microsoft.Web.Administration.ServerManager()) {
+          Microsoft.Web.Administration.ApplicationPool pool = m.ApplicationPools.Add( "MyPool" );
+          Microsoft.Web.Administration.Site site = m.Sites.CreateElement( "site" );
+          site.Name = "MySite";
+          site.Id = "MySite".GetHashCode();
+
+          Microsoft.Web.Administration.Application app = site.Applications.Add( EndPoint, Location );
+          app.ApplicationPoolName = "MyPool";
+
+          m.CommitChanges();
+        }
+      }
+      catch {
+        return false;
+      }
+
+      return true;
+    }
+
+    private bool CreateIISEntry3() {
+      try {
+        //System.IntPtr accessToken = System.IntPtr.Zero;
+        //System.Security.Principal.WindowsIdentity identity = new System.Security.Principal.WindowsIdentity( accessToken );
+        //System.Security.Principal.WindowsImpersonationContext context = identity.Impersonate();
+        
+        Microsoft.Web.Administration.ServerManager serverMgr = new Microsoft.Web.Administration.ServerManager();
+        string strWebsitename = EndPoint.Replace( "/", "" );
+        string strApplicationPool = "DefaultAppPool";
+        string strhostname = "localhost"; //abc.com
+        string stripaddress = "";// ip address
+        string bindinginfo = stripaddress + ":80:" + strhostname;
+
+        //check if website name already exists in IIS
+        bool bWebsite = IsWebsiteExists( serverMgr,  strWebsitename );
+        if (!bWebsite) {
+          Microsoft.Web.Administration.Site mySite = serverMgr.Sites.Add( EndPoint, "http", bindinginfo, Location );
+          mySite.ApplicationDefaults.ApplicationPoolName = strApplicationPool;
+          mySite.TraceFailedRequestsLogging.Enabled = true;
+          mySite.TraceFailedRequestsLogging.Directory = "C:\\inetpub\\customfolder\\site";
+          serverMgr.CommitChanges();
+        }
+        else return false;
+      }
+      catch (System.UnauthorizedAccessException) { return false; }
+      catch { return false; }
+
+      return true;
+    }
+
+    private bool IsWebsiteExists(Microsoft.Web.Administration.ServerManager serverMgr, string strWebsitename) {
+      bool flagset = false;
+      Microsoft.Web.Administration.SiteCollection sitecollection = serverMgr.Sites;
+      foreach (Microsoft.Web.Administration.Site site in sitecollection) {
+        if (site.Name == strWebsitename.ToString()) {
+          flagset = true;
+          break;
+        }
+        else {
+          flagset = false;
+        }
+      }
+      return flagset;
+    }
+
+    private bool CreateIISEntry4() {
+      string metabasePath = "IIS://localhost/W3SVC";
+      System.DirectoryServices.DirectoryEntry w3svc = new System.DirectoryServices.DirectoryEntry( metabasePath, "angel.munoz@amma.be", "password" );
+
+      string serverBinding = ":80:localhost";
+      string homeDirectory = Location;
+
+      object[] newSite = new object[] { "", new object[] { serverBinding }, homeDirectory };
+      object webSiteId = (object) w3svc.Invoke( "CreateNewSite", newSite );
+
+      // Returns the Website ID from the Metabase
+      var id = (int) webSiteId;
+
+      Tracer.Log( "WebSiteId = " + id, MessageVerbosity.Info );
+
       return true;
     }
     #endregion
