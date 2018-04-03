@@ -46,7 +46,7 @@ namespace SimpleJsonRest.Utils {
 
     #region Private methods
     Type SearchServiceType() {
-      var zenginsAssembly = System.Reflection.Assembly.LoadFrom(AssemblyPath);
+      var zenginsAssembly = System.Reflection.Assembly.LoadFrom(AssemblyPath); // TODO Enlever ça au plus vite ...
       var types = CollecTypes();
       for (var c = 0; c < types.Length; c++) {
         var type = types[c];

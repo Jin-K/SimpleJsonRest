@@ -4,13 +4,13 @@ using SimpleJsonRest.Utils;
 
 namespace SimpleJsonRest.Routing {
   class Route {
-    System.Text.RegularExpressions.Regex _Reg;
-    Delegate _Callback;
+    private System.Text.RegularExpressions.Regex _Reg;
+    private Delegate _Callback;
 
     /// <summary>
     /// Name of the Route
     /// </summary>
-    string Name { get; set; }
+    private string Name { get; set; }
     
     /// <summary>
     /// URL path able to trigger the route
@@ -56,7 +56,7 @@ namespace SimpleJsonRest.Routing {
 
 
     // Private methods
-    object DeserializeAndInvoke() { // TODO Refactor invoking
+    private object DeserializeAndInvoke() { // TODO Refactor invoking
       try {
         var _params = PrepareParameters(_Callback.Method.GetParameters());
         bool logIO = _Callback.Method.GetCustomAttribute<LogIOAttribute>() != null;
@@ -79,7 +79,7 @@ namespace SimpleJsonRest.Routing {
       }
     }
 
-    dynamic[] PrepareParameters(System.Reflection.ParameterInfo[] parameters) {
+    private dynamic[] PrepareParameters(System.Reflection.ParameterInfo[] parameters) {
       dynamic[] parametersToSerialize = new dynamic[parameters.Length];
       dynamic obj;
 
@@ -122,7 +122,7 @@ namespace SimpleJsonRest.Routing {
       return parametersToSerialize;
     }
 
-    dynamic Deserialize(dynamic jProp, System.Reflection.ParameterInfo param) {
+    private dynamic Deserialize(dynamic jProp, System.Reflection.ParameterInfo param) {
       Type type = param.ParameterType;
 
       if (jProp.GetType() == typeof(Newtonsoft.Json.Linq.JValue) && !IsNotCoreType(type))
@@ -139,7 +139,7 @@ namespace SimpleJsonRest.Routing {
       return returnObject;
     }
 
-    dynamic Deserialize(dynamic jProp, System.Reflection.PropertyInfo prop) {
+    private dynamic Deserialize(dynamic jProp, System.Reflection.PropertyInfo prop) {
       Type type = prop.PropertyType.Name != "Nullable`1" ? prop.PropertyType : prop.PropertyType.GetGenericArguments()[0];
 
       if (jProp is Newtonsoft.Json.Linq.JValue && !IsNotCoreType(type))
@@ -170,7 +170,7 @@ namespace SimpleJsonRest.Routing {
       return null;
     }
 
-    object FillIn(Type type, Newtonsoft.Json.Linq.JObject jToken) {
+    private object FillIn(Type type, Newtonsoft.Json.Linq.JObject jToken) {
       System.Reflection.PropertyInfo matchingProperty;
       var returnObject = Activator.CreateInstance(type); // TODO Revoir méthode instanciation ?
       foreach (var jProp in jToken.Properties())
@@ -179,7 +179,7 @@ namespace SimpleJsonRest.Routing {
       return Convert.ChangeType(returnObject, type);
     }
 
-    bool IsNotCoreType(Type type) {
+    private bool IsNotCoreType(Type type) {
       return type != typeof(object) && Type.GetTypeCode(type) == TypeCode.Object;
     }
   }

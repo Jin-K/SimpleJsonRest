@@ -65,6 +65,7 @@ namespace SimpleJsonRest.Utils {
     /// <summary>
     /// Interessant extension method to check if we can create a folder before trying to create it.
     /// But may cause another type of exception (PrivilegeNotHeldException) before creating the folder.
+    /// And I think that it takes more time to check access/privileges than just trying to create the folder and catch an Exception if we can't
     /// </summary>
     /// <param name="directory"></param>
     /// <param name="errorMessage"></param>

@@ -4,38 +4,42 @@ using System.Linq;
 namespace SimpleJsonRest.Utils {
   internal delegate void MessageHandler(string errorMessage);
 
+  /// <summary>
+  /// Class used to log some debug, info and/or error messages.
+  /// Is used by library, but can be accessed from outside also.
+  /// See following methods: Tracer.Log(string message, Exception exception) or Tracer.Log(string message, MessageVerbosity type)
+  /// </summary>
   public class Tracer {
     /// <summary>
     /// Won't trace messages if isn't true
     /// </summary>
-    static public bool Loaded {
+    public static bool Loaded {
       get {
         if (!loadedWithoutError && totalAttemps < MAX_ATTEMPTS) SetupLog4Net();
         return loadedWithoutError;
       }
     }
 
+    internal static event MessageHandler OnTracerError;
+
     // TODO: Peut-être que cette logique de max_attemps/totalAttemps est complètement bidonne et inutile ==> C'est même très fortement probable, désolé de me vexer moi-même
     private const ushort MAX_ATTEMPTS = 3;
-    static private ushort totalAttemps = 0;
-
-    static internal event MessageHandler OnTracerError;
-    static private bool loadedWithoutError = false;
-    
-    static private readonly log4net.ILog log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
-    static private log4net.ILog Logger {
+    private static ushort totalAttemps = 0;
+    private static bool loadedWithoutError = false;
+    private static readonly log4net.ILog log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
+    private static log4net.ILog Logger {
       get {
         if (log == null) SetupLog4Net();
         return log;
       }
     }
-
+    
     /// <summary>
     /// Used to setup and configure the Log4Net tracer.
     /// If logPath isn't specified the function will be looking for a "json4Rest" config section containing the "LogPath" value
     /// </summary>
     /// <param name="logPath"></param>
-    static internal void SetupLog4Net(string logPath = null) {
+    internal static void SetupLog4Net(string logPath = null) {
       totalAttemps++;
 
       if (logPath == null) {
@@ -85,11 +89,11 @@ namespace SimpleJsonRest.Utils {
       }
     }
 
-    static private string GetFormattedMethodName(System.Reflection.MethodInfo method, string end = "") {
+    private static string GetFormattedMethodName(System.Reflection.MethodInfo method, string end = "") {
       return $"{method.DeclaringType.FullName}.{method.Name}({string.Join(", ", method.GetParameters().Select(param => $"{param.Name}={{{param.Position}}}"))}){end}";
     }
 
-    static private void LogIO(string methodNameFormatted, MethodInvokationDirection direction, params object[] paramz) {
+    private static void LogIO(string methodNameFormatted, MethodInvokationDirection direction, params object[] paramz) {
       try {
         Logger.InfoFormat(methodNameFormatted, paramz);
       }
@@ -98,32 +102,14 @@ namespace SimpleJsonRest.Utils {
       }
     }
 
-    static internal void LogInput(System.Reflection.MethodInfo method, params object[] paramz) {
+    internal static void LogInput(System.Reflection.MethodInfo method, params object[] paramz) {
       string methodNameFormatted = GetFormattedMethodName(method);
       LogIO(methodNameFormatted, MethodInvokationDirection.Input, paramz);
     }
 
-    static internal void LogOutput(System.Reflection.MethodInfo method, object returnObject, params object[] paramz) {
+    internal static void LogOutput(System.Reflection.MethodInfo method, object returnObject, params object[] paramz) {
       string methodNameFormatted = GetFormattedMethodName(method, $" returned ({returnObject})");
       LogIO(methodNameFormatted, MethodInvokationDirection.Output, paramz);
-    }
-
-    /// <summary>
-    /// Log a message with Tracer.
-    /// level should be between 1 and 3
-    /// </summary>
-    /// <param name="message"></param>
-    /// <param name="level">
-    /// test
-    /// </param>
-    [Obsolete("Use Log(string message, MessageVerbosity type)")]
-    static public void Log(string message, uint level) {
-      int logLevel;
-
-      string logLvlString = System.Web.Configuration.WebConfigurationManager.AppSettings["LOG_LEVEL"];
-      logLevel = logLvlString == null ? 3 : int.Parse( logLvlString );
-
-      if (level > 0 && logLevel >= level) Logger.Info( message );
     }
 
     /// <summary>
@@ -131,7 +117,7 @@ namespace SimpleJsonRest.Utils {
     /// </summary>
     /// <param name="message"></param>
     /// <param name="exception"></param>
-    static public void Log(string message, Exception exception) {
+    public static void Log(string message, Exception exception) {
       InnerLog( message, MessageVerbosity.Error, System.Reflection.Assembly.GetCallingAssembly() == typeof( Tracer ).Assembly, exception );
     }
 
@@ -140,11 +126,11 @@ namespace SimpleJsonRest.Utils {
     /// </summary>
     /// <param name="message"></param>
     /// <param name="type"></param>
-    static public void Log(string message, MessageVerbosity type = MessageVerbosity.Info) {
+    public static void Log(string message, MessageVerbosity type = MessageVerbosity.Info) {
       InnerLog( message, type, System.Reflection.Assembly.GetCallingAssembly() == typeof( Tracer ).Assembly );
     }
 
-    static private void InnerLog(string message, MessageVerbosity type, bool isInnerCall, Exception e = null) {
+    private static void InnerLog(string message, MessageVerbosity type, bool isInnerCall, Exception e = null) {
       if (Loaded) {
         switch(type) {
           case MessageVerbosity.Debug:

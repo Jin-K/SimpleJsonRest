@@ -21,9 +21,9 @@
     #endregion
 
     #region Private members
-    HandlerConfig innerConfig;
-    int portToUse;
-    string serverToUse, locationToUse;
+    private HandlerConfig innerConfig;
+    private int portToUse;
+    private string serverToUse;
     #endregion
 
     #region Constructors
@@ -89,14 +89,11 @@
     /// <summary>
     /// Location for IIS web folder (where /web.config and /bin/SimpleJsonRest.dll will be placed)
     /// </summary>
-    public string Location {
-      get { return locationToUse; }
-      set { locationToUse = value; }
-    }
+    public string Location { get; set; }
     #endregion
 
     #region Methods
-    void Construct(string server, int port) {
+    private void Construct(string server, int port) {
       if (port == DEFAULT_PORT_SSL) throw new System.Exception("Go fuck yourself with your SSL");
       innerConfig = new HandlerConfig();
 
@@ -108,8 +105,21 @@
       innerConfig.AssemblyPath = callingMethod.DeclaringType.Assembly.CodeBase;
     }
 
+    // TODO Do we need this method ? If yes ==> find a way to update the web.config file (couldn't work with calls coming from another way than IIS)
     internal bool UpdateWebConfigFile() {
-      throw new System.NotImplementedException("Sorry");
+      throw new System.NotImplementedException( "OUPS" );
+      //try {
+      //  var config = System.Web.Configuration.WebConfigurationManager.OpenWebConfiguration( "~" );
+      //  HandlerConfig section = config.GetSection( "json4Rest" ) as HandlerConfig;
+      //  section.AssemblyPath = innerConfig.AssemblyPath;
+      //  section.Service = innerConfig.Service;
+      //  section.LogPath = innerConfig.LogPath;
+      //  config.Save();
+      //  return true;
+      //}
+      //catch {
+      //  return false;
+      //}
     }
 
     /// <summary>
@@ -119,21 +129,21 @@
     public bool RegisterInIIS() {
       return RegisterInIIS(this);
     }
-    
+
     /// <summary>
     /// Create website folder and register website in IIS with specified values (check SimpleJsonRest.Utils.ConfigIIS's accessible properties)
     /// Default values for "server" and "port" are respectively "localhost" and 80
     /// </summary>
     /// <returns></returns>
-    static public bool RegisterInIIS(string service, string endpoint, string location, string logPath = ConfigIIS.DEFAULT_LOG_PATH) {
+    public static bool RegisterInIIS(string service, string endpoint, string location, string logPath = ConfigIIS.DEFAULT_LOG_PATH) {
       return RegisterInIIS(ConfigIIS.DEFAULT_SERVER, ConfigIIS.DEFAULT_PORT, service, endpoint, location, logPath);
     }
-    
+
     /// <summary>
     /// Create website folder and register website in IIS with specified values (check SimpleJsonRest.Utils.ConfigIIS's accessible properties)
     /// </summary>
     /// <returns></returns>
-    static public bool RegisterInIIS(string server, int port, string service, string endpoint, string location, string logPath = ConfigIIS.DEFAULT_LOG_PATH) {
+    public static bool RegisterInIIS(string server, int port, string service, string endpoint, string location, string logPath = ConfigIIS.DEFAULT_LOG_PATH) {
       var config = new ConfigIIS(server, port) {
         Service = service,
         EndPoint = endpoint,
@@ -147,16 +157,14 @@
     /// Create website folder and register website in IIS with specified config
     /// </summary>
     /// <returns></returns>
-    static public bool RegisterInIIS(ConfigIIS config) {
+    public static bool RegisterInIIS(ConfigIIS config) {
       if (config.LogPath == null) config.LogPath = DEFAULT_LOG_PATH;
       Utils.Tracer.SetupLog4Net( config.LogPath ); // test
-
-      var ret = false;
+      
       var destFolder = config.Location;
       
       if (!CheckCreate( destFolder, out string error)) return false;
-      if (!CreateWebConfigFile($"{destFolder}\\web.config") ) return false;
-
+      if (!config.CreateWebConfigFile($"{destFolder}\\web.config") ) return false;
       
       destFolder += "\\bin";
       
@@ -166,17 +174,17 @@
       var dllPath = $"{System.IO.Path.GetDirectoryName(uriPath)}\\SimpleJsonRest.dll";
       var destFile = $"{destFolder}\\SimpleJsonRest.dll";
       try {
-        System.IO.File.Copy(dllPath, destFile);
+        System.IO.File.Copy(dllPath, destFile, true);
       }
       catch (System.UnauthorizedAccessException) {
         Tracer.Log( $"No access to write \"{destFile}\"", MessageVerbosity.Error );
         return false;
       }
 
-      return ret && config.UpdateWebConfigFile();
+      return config.CreateIISEntry3(); // TODO Solve problem to add entry in IIS, we should probably use WindowsIdentity.Impersonate (ref: https://msdn.microsoft.com/en-us/library/chf6fbt4(v=vs.110).aspx)
     }
 
-    static bool CheckCreate(string directoryPath, out string errorMessage) {
+    private static bool CheckCreate(string directoryPath, out string errorMessage) {
       errorMessage = "";
 
       System.IO.DirectoryInfo directoryToCheck = System.IO.Directory.GetParent( directoryPath );
