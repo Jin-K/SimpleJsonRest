@@ -149,18 +149,18 @@
     /// <returns></returns>
     static public bool RegisterInIIS(ConfigIIS config) {
       if (config.LogPath == null) config.LogPath = DEFAULT_LOG_PATH;
+      Utils.Tracer.SetupLog4Net( config.LogPath ); // test
 
       var ret = false;
-      // Started implementation
-      var destFolder = new System.IO.DirectoryInfo(config.Location);
+      var destFolder = config.Location;
       
-      //if (!CheckCreate(destFolder)) return false;
-      if (!destFolder.CheckWriteAccessAndCreate( out string error )) return false;
+      if (!CheckCreate( destFolder, out string error)) return false;
       if (!CreateWebConfigFile($"{destFolder}\\web.config") ) return false;
 
-      destFolder = new System.IO.DirectoryInfo( config.Location + "\\bin" );
       
-      if (!destFolder.CheckWriteAccessAndCreate( out error )) return false;
+      destFolder += "\\bin";
+      
+      if (!CheckCreate( destFolder, out error )) return false;
       var uriBuilder = new System.UriBuilder(System.Reflection.Assembly.GetExecutingAssembly().CodeBase);
       var uriPath = System.Uri.UnescapeDataString(uriBuilder.Path);
       var dllPath = $"{System.IO.Path.GetDirectoryName(uriPath)}\\SimpleJsonRest.dll";
@@ -176,13 +176,21 @@
       return ret && config.UpdateWebConfigFile();
     }
 
-    static bool CheckCreate(string directoryPath) {
+    static bool CheckCreate(string directoryPath, out string errorMessage) {
+      errorMessage = "";
+
+      System.IO.DirectoryInfo directoryToCheck = System.IO.Directory.GetParent( directoryPath );
+      if (!directoryToCheck.Exists) {
+        errorMessage = "Parent folder doesn't exist.";
+        return false;
+      }
+
       if (!System.IO.Directory.Exists(directoryPath))
-        // TODO: Checker droits de créer un dossier ici ? au lieu de capturer une très probable exception
         try {
           System.IO.Directory.CreateDirectory(directoryPath);
         }
         catch (System.UnauthorizedAccessException e) {
+          errorMessage = e.Message;
           Tracer.Log( $@"Exception in ConfigIIS.CheckCreate for this folder: ""{directoryPath}""", e );
           return false;
         }

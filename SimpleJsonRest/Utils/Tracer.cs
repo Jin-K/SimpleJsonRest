@@ -5,13 +5,6 @@ namespace SimpleJsonRest.Utils {
   internal delegate void MessageHandler(string errorMessage);
 
   public class Tracer {
-    const ushort MAX_ATTEMPTS = 3;
-    static ushort totalAttemps = 0;
-
-    static internal event MessageHandler OnTracerError;
-
-    static bool loadedWithoutError = false;
-
     /// <summary>
     /// Won't trace messages if isn't true
     /// </summary>
@@ -22,22 +15,40 @@ namespace SimpleJsonRest.Utils {
       }
     }
 
-    static readonly log4net.ILog log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
-    static log4net.ILog Logger {
+    // TODO: Peut-être que cette logique de max_attemps/totalAttemps est complètement bidonne et inutile ==> C'est même très fortement probable, désolé de me vexer moi-même
+    private const ushort MAX_ATTEMPTS = 3;
+    static private ushort totalAttemps = 0;
+
+    static internal event MessageHandler OnTracerError;
+    static private bool loadedWithoutError = false;
+    
+    static private readonly log4net.ILog log = log4net.LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
+    static private log4net.ILog Logger {
       get {
         if (log == null) SetupLog4Net();
         return log;
       }
     }
 
-    static void SetupLog4Net() {
+    /// <summary>
+    /// Used to setup and configure the Log4Net tracer.
+    /// If logPath isn't specified the function will be looking for a "json4Rest" config section containing the "LogPath" value
+    /// </summary>
+    /// <param name="logPath"></param>
+    static internal void SetupLog4Net(string logPath = null) {
       totalAttemps++;
-      Utils.HandlerConfig config = null;
-      try {
-        config = System.Web.Configuration.WebConfigurationManager.GetSection("json4Rest") as Utils.HandlerConfig;
-      }
-      catch (Exception e) {
-        throw new HandlerException($"Error with SimpleJsonRest's config section: {e.Message}", System.Net.HttpStatusCode.NotImplemented);
+
+      if (logPath == null) {
+        Utils.HandlerConfig config = null;
+        try {
+          config = System.Web.Configuration.WebConfigurationManager.GetSection("json4Rest") as Utils.HandlerConfig;
+        }
+        catch (Exception e) {
+          throw new HandlerException($"Error with SimpleJsonRest's config section: {e.Message}", System.Net.HttpStatusCode.NotImplemented);
+        }
+
+        if (config == null) throw new NullReferenceException( "config is null" );
+        logPath = config.LogPath;
       }
 
       log4net.Repository.Hierarchy.Hierarchy hierarchy = (log4net.Repository.Hierarchy.Hierarchy) log4net.LogManager.GetRepository();
@@ -48,7 +59,7 @@ namespace SimpleJsonRest.Utils {
 
       log4net.Appender.RollingFileAppender roller = new log4net.Appender.RollingFileAppender();
       try {
-        roller.File = config.LogPath;
+        roller.File = logPath;
         roller.AppendToFile = true;
         roller.RollingStyle = log4net.Appender.RollingFileAppender.RollingMode.Size;
         roller.DatePattern = "yyyy.MM.dd";
@@ -74,11 +85,11 @@ namespace SimpleJsonRest.Utils {
       }
     }
 
-    static string GetFormattedMethodName(System.Reflection.MethodInfo method, string end = "") {
+    static private string GetFormattedMethodName(System.Reflection.MethodInfo method, string end = "") {
       return $"{method.DeclaringType.FullName}.{method.Name}({string.Join(", ", method.GetParameters().Select(param => $"{param.Name}={{{param.Position}}}"))}){end}";
     }
 
-    static void LogIO(string methodNameFormatted, MethodInvokationDirection direction, params object[] paramz) {
+    static private void LogIO(string methodNameFormatted, MethodInvokationDirection direction, params object[] paramz) {
       try {
         Logger.InfoFormat(methodNameFormatted, paramz);
       }
@@ -87,12 +98,12 @@ namespace SimpleJsonRest.Utils {
       }
     }
 
-    internal static void LogInput(System.Reflection.MethodInfo method, params object[] paramz) {
+    static internal void LogInput(System.Reflection.MethodInfo method, params object[] paramz) {
       string methodNameFormatted = GetFormattedMethodName(method);
       LogIO(methodNameFormatted, MethodInvokationDirection.Input, paramz);
     }
 
-    internal static void LogOutput(System.Reflection.MethodInfo method, object returnObject, params object[] paramz) {
+    static internal void LogOutput(System.Reflection.MethodInfo method, object returnObject, params object[] paramz) {
       string methodNameFormatted = GetFormattedMethodName(method, $" returned ({returnObject})");
       LogIO(methodNameFormatted, MethodInvokationDirection.Output, paramz);
     }
@@ -106,7 +117,7 @@ namespace SimpleJsonRest.Utils {
     /// test
     /// </param>
     [Obsolete("Use Log(string message, MessageVerbosity type)")]
-    public static void Log(string message, uint level) {
+    static public void Log(string message, uint level) {
       int logLevel;
 
       string logLvlString = System.Web.Configuration.WebConfigurationManager.AppSettings["LOG_LEVEL"];
@@ -120,7 +131,7 @@ namespace SimpleJsonRest.Utils {
     /// </summary>
     /// <param name="message"></param>
     /// <param name="exception"></param>
-    public static void Log(string message, Exception exception) {
+    static public void Log(string message, Exception exception) {
       InnerLog( message, MessageVerbosity.Error, System.Reflection.Assembly.GetCallingAssembly() == typeof( Tracer ).Assembly, exception );
     }
 
@@ -129,11 +140,11 @@ namespace SimpleJsonRest.Utils {
     /// </summary>
     /// <param name="message"></param>
     /// <param name="type"></param>
-    public static void Log(string message, MessageVerbosity type = MessageVerbosity.Info) {
+    static public void Log(string message, MessageVerbosity type = MessageVerbosity.Info) {
       InnerLog( message, type, System.Reflection.Assembly.GetCallingAssembly() == typeof( Tracer ).Assembly );
     }
 
-    static void InnerLog(string message, MessageVerbosity type, bool isInnerCall, Exception e = null) {
+    static private void InnerLog(string message, MessageVerbosity type, bool isInnerCall, Exception e = null) {
       if (Loaded) {
         switch(type) {
           case MessageVerbosity.Debug:
@@ -153,6 +164,7 @@ namespace SimpleJsonRest.Utils {
     }
   }
 
+  // TODO Check if this enum is useful ..
   enum MethodInvokationDirection {
     Input = 1,
     Output = 2

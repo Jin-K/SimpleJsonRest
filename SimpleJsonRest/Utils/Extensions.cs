@@ -62,6 +62,14 @@ namespace SimpleJsonRest.Utils {
       return System.Delegate.CreateDelegate(getType(types.ToArray()), target, methodInfo.Name);
     }
 
+    /// <summary>
+    /// Interessant extension method to check if we can create a folder before trying to create it.
+    /// But may cause another type of exception (PrivilegeNotHeldException) before creating the folder.
+    /// </summary>
+    /// <param name="directory"></param>
+    /// <param name="errorMessage"></param>
+    /// <returns></returns>
+    [System.Obsolete]
     internal static bool CheckWriteAccessAndCreate(this System.IO.DirectoryInfo directory, out string errorMessage) {
       System.IO.DirectoryInfo directoryToCheck = directory.Parent;
       if (!directoryToCheck.Exists) {

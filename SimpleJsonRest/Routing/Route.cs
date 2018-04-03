@@ -7,19 +7,21 @@ namespace SimpleJsonRest.Routing {
     System.Text.RegularExpressions.Regex _Reg;
     Delegate _Callback;
 
+    /// <summary>
+    /// Name of the Route
+    /// </summary>
     string Name { get; set; }
-
+    
+    /// <summary>
+    /// URL path able to trigger the route
+    /// </summary>
     internal string Path { get; private set; }
 
-
-    internal Route(string urlPart, Delegate delegateMethod) {
-      Path = urlPart;
-      Name = delegateMethod.Method.DeclaringType.Name + "." + delegateMethod.Method.Name;
-
-      _Reg = new System.Text.RegularExpressions.Regex("^(" + urlPart.Replace("/", "\\/") + "\\/?(\\?[^\\/]*)?)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-      _Callback = delegateMethod;
-    }
-
+    /// <summary>
+    /// Register a route: with a callback method and an object target
+    /// </summary>
+    /// <param name="method"></param>
+    /// <param name="target"></param>
     internal Route(System.Reflection.MethodInfo method, object target) {
       Path = "/" + method.Name;
       Name = method.DeclaringType.Name + "." + method.Name;
@@ -27,16 +29,25 @@ namespace SimpleJsonRest.Routing {
       _Callback = method.CreateDelegate(target);
     }
 
+    /// <summary>
+    /// Tests if an url part matches to this route's expecting path
+    /// </summary>
+    /// <param name="url_part"></param>
+    /// <returns></returns>
     internal bool Check(string url_part) {
       return _Reg.Match(url_part).Success;
     }
 
+    /// <summary>
+    /// Executes the route callback method (Invocation via .NET reflection)
+    /// </summary>
+    /// <returns></returns>
     internal object Execute() {
       object[] attribs = _Callback.Method.GetCustomAttributes(typeof(AuthenticateAttribute), false);
 
-      if (attribs.Length >= 1 && attribs.Any(a => a.GetType() == typeof(AuthenticateAttribute)) && !(attribs.First(a => a.GetType() == typeof(AuthenticateAttribute)) as AuthenticateAttribute).IsConnected) {
-        // TODO : Reject 401
-        return null;
+      for (int i = 0; i < attribs.Length; i++) {
+        var attrib = attribs[i] as AuthenticateAttribute;
+        if (attrib != null && !attrib.IsConnected) return null; // handled in Handler.ProcessRequest finally block
       }
 
       // Invoke method correspondante, en déserialisant json entrant (s'il y en a) par rapport aux paramètres attendus
@@ -45,7 +56,7 @@ namespace SimpleJsonRest.Routing {
 
 
     // Private methods
-    object DeserializeAndInvoke() {
+    object DeserializeAndInvoke() { // TODO Refactor invoking
       try {
         var _params = PrepareParameters(_Callback.Method.GetParameters());
         bool logIO = _Callback.Method.GetCustomAttribute<LogIOAttribute>() != null;
@@ -91,12 +102,12 @@ namespace SimpleJsonRest.Routing {
         for (var i = 0; i < parameters.Length; i++) {
             var param = parameters[i];
             Func<string, bool> findPropNameDelegate = jsonProp => jsonProp.ToLower() == param.Name.ToLower();
-            if (!propertyNames.Any(findPropNameDelegate)) throw new HandlerException($@"Json parameter ""{param.Name}"" not found");
+            if (!propertyNames.Any(findPropNameDelegate)) throw new HandlerException($@"Json parameter ""{param.Name}"" not found"); // TODO Avoid using of LINQ
           parametersToSerialize[i] = Deserialize(obj[propertyNames.First(findPropNameDelegate)], param);
         }
       }
 
-      if (parameters.Any(p => p.ParameterType == typeof(System.Web.HttpContext))) {
+      if (parameters.Any(p => p.ParameterType == typeof(System.Web.HttpContext))) { // TODO Avoid LINQ
         int index = -1;
         for (int c = 0; c < parameters.Length; c++) {
           var param = parameters[c];
@@ -117,11 +128,12 @@ namespace SimpleJsonRest.Routing {
       if (jProp.GetType() == typeof(Newtonsoft.Json.Linq.JValue) && !IsNotCoreType(type))
         return jProp.Value;
 
+      // TODO Revoir performance instanciation (et utiliser conseils de vidéo de perf vue sur youtube: utilisant instructions CIL)
       var returnObject = Activator.CreateInstance(type);
       foreach (var truk in jProp.Properties()) {
         System.Reflection.PropertyInfo matchingProperty = type.GetProperty(truk.Name);
         if (matchingProperty != null)
-          matchingProperty.SetValue(returnObject, Deserialize(truk.Value, matchingProperty), null);
+          matchingProperty.SetValue(returnObject, Deserialize(truk.Value, matchingProperty), null); // TODO Penser aux différentes versions .NET ... (3eme paramètre)
       }
 
       return returnObject;
@@ -160,7 +172,7 @@ namespace SimpleJsonRest.Routing {
 
     object FillIn(Type type, Newtonsoft.Json.Linq.JObject jToken) {
       System.Reflection.PropertyInfo matchingProperty;
-      var returnObject = Activator.CreateInstance(type);
+      var returnObject = Activator.CreateInstance(type); // TODO Revoir méthode instanciation ?
       foreach (var jProp in jToken.Properties())
         if ((matchingProperty = type.GetProperty(jProp.Name)) != null)
           matchingProperty.SetValue(returnObject, Deserialize(jProp.Value, matchingProperty), null);

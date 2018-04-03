@@ -42,6 +42,7 @@
     <Reference Include="log4net, Version=2.0.8.0, Culture=neutral, PublicKeyToken=669e0ddf0bb1aa2a, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>lib\log4net.dll</HintPath>
+      <EmbedInteropTypes>False</EmbedInteropTypes>
     </Reference>
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="Newtonsoft.Json, Version=6.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
@@ -71,7 +72,6 @@
     <Compile Include="Models\LoginResponse.cs" />
     <Compile Include="Utils\Enums.cs" />
     <Compile Include="Utils\LogIO.cs" />
-    <Compile Include="SerializationException.cs" />
     <Compile Include="Utils\ConfigIIS.cs" />
     <Compile Include="Utils\Extensions.cs" />
     <Compile Include="FaultException.cs" />
@@ -108,6 +108,9 @@
       </FlavorProperties>
     </VisualStudio>
   </ProjectExtensions>
+  <PropertyGroup>
+    <PostBuildEvent>copy /Y "$(TargetPath)" "C:\data\dev\$\aakgac\$(ProjectName).dll"</PostBuildEvent>
+  </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">

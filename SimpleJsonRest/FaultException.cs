@@ -9,15 +9,8 @@
         _message = value;
       }
     }
-    System.Net.HttpStatusCode statusCode;
-    internal System.Net.HttpStatusCode StatusCode {
-      get {
-        return statusCode;
-      }
-      private set {
-        statusCode = value;
-      }
-    }
+
+    internal System.Net.HttpStatusCode StatusCode { get; private set; }
 
     internal HandlerException(string message, System.Net.HttpStatusCode statusCode = System.Net.HttpStatusCode.InternalServerError) : base(message) {
       Message = message;

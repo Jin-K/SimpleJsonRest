@@ -6,6 +6,9 @@ using System.Web;
 namespace SimpleJsonRest {
   public class Handler : IHttpHandler, System.Web.SessionState.IRequiresSessionState {
 
+    /// <summary>
+    /// Actual state of the handler, check HandlerState enum to know different states it could have
+    /// </summary>
     public static HandlerState State => HandlerState.Undefined;
 
     static IAuthentifiedService service;
@@ -17,7 +20,7 @@ namespace SimpleJsonRest {
     public bool IsReusable {
       // Return false in case your Managed Handler cannot be reused for another request.
       // Usually this would be false in case you have some state information preserved per request.
-      get { return true; }
+      get { return false; }
     }
 
     public void ProcessRequest(HttpContext context) {
@@ -57,14 +60,15 @@ namespace SimpleJsonRest {
 
         // Si route pas trouvée
         json_response = new { error = "Unknown path" };
-        context.Response.StatusCode = 404;
+        context.Response.StatusCode = (int) System.Net.HttpStatusCode.NotFound;
       }
       catch (Exception e) {
+        // TODO Complètement revoir la gestion des exceptions ... ==> FaultException, FaultException2 ? Pourquoi j'ai utilisé ces classes pourries ?
         string exceptionType = e.GetType().Name;
         switch (exceptionType) {
           case "FaultException":
             FaultException _e = e as FaultException;
-            context.Response.StatusCode = 400;
+            context.Response.StatusCode = (int) System.Net.HttpStatusCode.BadRequest;
             json_response = new { error = _e.Message };
             break;
           case "FaultException2":
@@ -73,7 +77,7 @@ namespace SimpleJsonRest {
             json_response = new { error = _e2.Message };
             break;
           case "TargetInvocationException":
-            context.Response.StatusCode = 500;
+            context.Response.StatusCode = (int) System.Net.HttpStatusCode.InternalServerError;
             json_response = new {
               error = (e as System.Reflection.TargetInvocationException).InnerException.Message,
               type = exceptionType,
@@ -81,7 +85,7 @@ namespace SimpleJsonRest {
             };
             break;
           default:
-            context.Response.StatusCode = 500;
+            context.Response.StatusCode = (int) System.Net.HttpStatusCode.InternalServerError;
             json_response = new {
               error = e.Message,
               type = exceptionType,
@@ -95,14 +99,19 @@ namespace SimpleJsonRest {
       finally {
         Tracer.Log($" --- || End request || {ip} || path: {url_part} || --- {DateTime.Now.ToString()}     ---     <--");
 
-        if (json_response != null) context.Reply(json_response);
+        /// If there is a response
+        if (json_response != null)  context.Reply( json_response );
+        /// If Route.Execute() returned null ==> Reject 401
+        else                        context.Response.StatusCode = (int) System.Net.HttpStatusCode.Unauthorized;
 
+        /// Applies cross-domain http-header if needed
         if (
           System.Web.Configuration.WebConfigurationManager.AppSettings["cross_domain"] != null &&
           int.TryParse(System.Web.Configuration.WebConfigurationManager.AppSettings["cross_domain"], out int cross_domain) &&
-          Convert.ToBoolean(cross_domain)
+          cross_domain == 1
         ) context.Response.AppendHeader("Access-Control-Allow-Origin", "*");
 
+        /// End request traitement and flush
         context.Response.End();
       }
     }
@@ -126,12 +135,16 @@ namespace SimpleJsonRest {
 
     Routing.Route[] PrepareNLoadServiceRoutes(IAuthentifiedService service) {
       var type = service.GetType();
-      router = (
-          from m in type.GetMethods()
-          where m.IsPublic && m.DeclaringType == type
-          select new Routing.Route(m, service)
-      ).ToArray();
-      return router;
+
+      var routes = new System.Collections.Generic.List<Routing.Route>();
+      var methods = type.GetMethods();
+
+      foreach(var m in methods) {
+        if (m.IsPublic && m.DeclaringType == type)
+          routes.Add( new Routing.Route( m, service ) );
+      }
+
+      return router = routes.ToArray();
     }
 
     /// <summary>
