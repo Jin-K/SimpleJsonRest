@@ -46,7 +46,6 @@ namespace SimpleJsonRest.Utils {
 
     #region Private methods
     Type SearchServiceType() {
-      var zenginsAssembly = System.Reflection.Assembly.LoadFrom(AssemblyPath); // TODO Enlever ça au plus vite ...
       var types = CollecTypes();
       for (var c = 0; c < types.Length; c++) {
         var type = types[c];
@@ -61,9 +60,14 @@ namespace SimpleJsonRest.Utils {
     }
 
     Type[] CollecTypes() {
-      var domainAssemblies = AppDomain.CurrentDomain.GetAssemblies();
-      var typesList = new System.Collections.Generic.List<Type>();
+      /// Preloading target assembly in appDomain
+      System.Reflection.Assembly.LoadFrom( AssemblyPath );
 
+      /// Prepare domain assemblies and a list of types
+      System.Reflection.Assembly[] domainAssemblies = AppDomain.CurrentDomain.GetAssemblies();
+      System.Collections.Generic.List<Type> typesList = new System.Collections.Generic.List<Type>();
+
+      /// Collect all types we find (bypassing unfounded)
       for (var c = 0; c < domainAssemblies.Length; c++) {
         System.Reflection.Assembly assembly = domainAssemblies[c];
         try {
@@ -74,6 +78,7 @@ namespace SimpleJsonRest.Utils {
         }
       }
 
+      /// return
       return typesList.ToArray();
     }
     #endregion

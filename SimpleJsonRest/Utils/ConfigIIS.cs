@@ -1,4 +1,6 @@
-﻿namespace SimpleJsonRest.Utils {
+﻿using System.Linq;
+
+namespace SimpleJsonRest.Utils {
   public class ConfigIIS : IConfig {
 
     #region Constants
@@ -16,6 +18,8 @@
     /// Default server for test
     /// </summary>
     public const string DEFAULT_SERVER = "localhost";
+
+    private const string DEFAULT_APPLICATION_POOL = "DefaultAppPool";
 
     internal const string DEFAULT_LOG_PATH = "Logs\\log.txt";
     #endregion
@@ -79,22 +83,24 @@
     }
 
     /// <summary>
-    /// Endpoint to use for the mapping in IIS, (ex: "/my/path" in "server:port/my/path")
+    /// Endpoint to use for naming the site's entry in IIS, (By default, IIS has the following site entry: "Default Web Site")
     /// </summary>
-    public string EndPoint {
+    public string SiteName {
       get { return innerConfig.EndPoint; }
-      set { innerConfig.EndPoint = value.StartsWith("/") ? value : "/" + value; }
+      set { innerConfig.EndPoint = value; }
     }
 
     /// <summary>
     /// Location for IIS web folder (where /web.config and /bin/SimpleJsonRest.dll will be placed)
     /// </summary>
     public string Location { get; set; }
+
+    public Models.AdministratorCredentials Credentials { get; set; }
     #endregion
 
     #region Methods
     private void Construct(string server, int port) {
-      if (port == DEFAULT_PORT_SSL) throw new System.Exception("Go fuck yourself with your SSL");
+      if (port == DEFAULT_PORT_SSL) throw new System.NotSupportedException("This port is reserved for SSL, which is still not supported.");
       innerConfig = new HandlerConfig();
 
       serverToUse = server;
@@ -123,7 +129,9 @@
     }
 
     /// <summary>
-    /// Create website folder and register website in IIS for this config
+    /// Create website folder and register website in IIS for this config.
+    /// Set up a value for Credentials property if you want the library to auto-register a web site entry in IIS, 
+    /// otherwise only the target folder for IIS will be created with minimum required files
     /// </summary>
     /// <returns></returns>
     public bool RegisterInIIS() {
@@ -132,7 +140,9 @@
 
     /// <summary>
     /// Create website folder and register website in IIS with specified values (check SimpleJsonRest.Utils.ConfigIIS's accessible properties)
-    /// Default values for "server" and "port" are respectively "localhost" and 80
+    /// Default values for "server" and "port" are respectively "localhost" and 80.
+    /// Set up a value for Credentials property if you want the library to auto-register a web site entry in IIS, 
+    /// otherwise only the target folder for IIS will be created with minimum required files
     /// </summary>
     /// <returns></returns>
     public static bool RegisterInIIS(string service, string endpoint, string location, string logPath = ConfigIIS.DEFAULT_LOG_PATH) {
@@ -140,13 +150,15 @@
     }
 
     /// <summary>
-    /// Create website folder and register website in IIS with specified values (check SimpleJsonRest.Utils.ConfigIIS's accessible properties)
+    /// Create website folder and register website in IIS with specified values (check SimpleJsonRest.Utils.ConfigIIS's accessible properties).
+    /// Set up a value for Credentials property if you want the library to auto-register a web site entry in IIS, 
+    /// otherwise only the target folder for IIS will be created with minimum required files
     /// </summary>
     /// <returns></returns>
     public static bool RegisterInIIS(string server, int port, string service, string endpoint, string location, string logPath = ConfigIIS.DEFAULT_LOG_PATH) {
       var config = new ConfigIIS(server, port) {
         Service = service,
-        EndPoint = endpoint,
+        SiteName = endpoint,
         Location = location,
         LogPath = logPath
       };
@@ -154,34 +166,77 @@
     }
 
     /// <summary>
-    /// Create website folder and register website in IIS with specified config
+    /// Creates website folder and register website in IIS with specified config.
+    /// Set up a value for Credentials property if you want the library to auto-register a web site entry in IIS, 
+    /// otherwise only the target folder for IIS will be created with minimum required files
     /// </summary>
     /// <returns></returns>
     public static bool RegisterInIIS(ConfigIIS config) {
       if (config.LogPath == null) config.LogPath = DEFAULT_LOG_PATH;
-      Utils.Tracer.SetupLog4Net( config.LogPath ); // test
+      Tracer.SetupLog4Net( config.LogPath );
       
       var destFolder = config.Location;
-      
       if (!CheckCreate( destFolder, out string error)) return false;
       if (!config.CreateWebConfigFile($"{destFolder}\\web.config") ) return false;
       
       destFolder += "\\bin";
-      
       if (!CheckCreate( destFolder, out error )) return false;
-      var uriBuilder = new System.UriBuilder(System.Reflection.Assembly.GetExecutingAssembly().CodeBase);
-      var uriPath = System.Uri.UnescapeDataString(uriBuilder.Path);
-      var dllPath = $"{System.IO.Path.GetDirectoryName(uriPath)}\\SimpleJsonRest.dll";
+
+      var currentAssembly = System.Reflection.Assembly.GetExecutingAssembly();
+      
+      /// TODO Find a way to fix the following problem:
+      /// some of the assemblies required by SimpleJsonRest (requiredAssemblies4lib) could be overloaded by assemblies already loaded by the calling assembly
+      /// In that case  ==> the following script could find the location of the assembly loaded by the calling assembly, 
+      ///                   not the one that SimpleJsonRest requires. And that's a very big problem because we will be copying the bad dll (not same version number)
+      ///               ==> When IIS or w3wp.exe calls our library --> BOOM !!!! Error: dll not found (because we are probably requiring a different version)
+      var requiredAssemblies4lib = currentAssembly.GetReferencedAssemblies();
+      var loadedAssembliesInDomain = System.AppDomain.CurrentDomain.GetAssemblies();
+      var dllPath = currentAssembly.Location;
       var destFile = $"{destFolder}\\SimpleJsonRest.dll";
       try {
+        /// Copy main dll (SimpleJsonRest)
         System.IO.File.Copy(dllPath, destFile, true);
+
+        /// Copy log4net & Newtonsoft.json dll
+        var stillNotFound = 2;
+        foreach (var ass in requiredAssemblies4lib) {
+          var assName = ass.FullName;
+          if (assName.Contains( "log4net, Version=2.0.8.0" ) || assName.Contains( "Newtonsoft.Json, Version=6.0.0.0" )) {
+            var dllLocation = System.Reflection.Assembly.Load( ass ).Location;
+            var dllDestination = $"{destFolder}\\{System.IO.Path.GetFileName( dllLocation )}";
+            System.IO.File.Copy( dllLocation, dllDestination, true ); // override if exists
+            stillNotFound--;
+          }
+          if (stillNotFound == 0) break;
+        }
       }
       catch (System.UnauthorizedAccessException) {
         Tracer.Log( $"No access to write \"{destFile}\"", MessageVerbosity.Error );
         return false;
       }
 
-      return config.CreateIISEntry3(); // TODO Solve problem to add entry in IIS, we should probably use WindowsIdentity.Impersonate (ref: https://msdn.microsoft.com/en-us/library/chf6fbt4(v=vs.110).aspx)
+      /// No credentials specified ? ==> Guessing that we're not 
+      if (config.Credentials == null) return true;
+
+      return config.CreateIISEntry();
+    }
+
+    /// <summary>
+    /// Setup administrator credentials to auto-register an entry in IIS (Internet Information Services).
+    /// </summary>
+    /// <param name="username"></param>
+    /// <param name="password"></param>
+    /// <param name="domainName"></param>
+    public void SetUpCredentials(string username, string password, string domainName) {
+      SetUpCredentials( new Models.AdministratorCredentials( username , password, domainName) );
+    }
+
+    /// <summary>
+    /// Setup administrator credentials to auto-register an entry in IIS (Internet Information Services).
+    /// </summary>
+    /// <param name="credentials"></param>
+    public void SetUpCredentials(Models.AdministratorCredentials credentials) {
+      this.Credentials = credentials;
     }
 
     private static bool CheckCreate(string directoryPath, out string errorMessage) {
@@ -246,74 +301,57 @@
     }
 
     private bool CreateIISEntry() {
-      Microsoft.Web.Administration.ServerManager iisManager = null;
-      try {
-        iisManager = new Microsoft.Web.Administration.ServerManager();
-        iisManager.Sites.Add( EndPoint, "http", "*:80", Location );
-        iisManager.CommitChanges();
-      }
-      catch {
-        return false;
-      }
-      finally {
-        if (iisManager != null) iisManager.Dispose();
-      }
 
-      return true;
+      var iisDriver = new Core.IISImpersonationDriver( this.Credentials );
+
+      return iisDriver.RunAsAdministrator(
+        new System.Threading.Tasks.Task<bool>( () => {
+          /// Prepare server manager && Check if website name already exists in IIS
+          Microsoft.Web.Administration.ServerManager serverMgr = new Microsoft.Web.Administration.ServerManager();
+          if (WebsiteExists( serverMgr, SiteName )) {
+            Tracer.Log( $"Website ({SiteName}) already exists.", MessageVerbosity.Error );
+            return false;
+          }
+          
+          /// Adding new web site binded to an application pool
+          try {
+            /// Find (in existing application pools collection) one with 32 bits enabled or get default application pool and active 32 bits if we have the default application pool in IIS
+            Microsoft.Web.Administration.ApplicationPool appPoolToUse = null;
+            foreach (var pool in serverMgr.ApplicationPools) {
+              /// priority for application pool with 32bits enabled
+              if (pool.Enable32BitAppOnWin64) {       
+                appPoolToUse = pool;
+                break;
+              }
+              /// if no one has 32 bits but that DefaultAppPool exists ==> take and active 32 after iteration
+              if (pool.Name == DEFAULT_APPLICATION_POOL)
+                appPoolToUse = pool;
+            }
+            if (appPoolToUse.Name == DEFAULT_APPLICATION_POOL)
+              appPoolToUse.Enable32BitAppOnWin64 = true;
+            /// Adding web site entry and http/ip bindings 4 it
+            Microsoft.Web.Administration.Site mySite = serverMgr.Sites.Add( SiteName, "http", $"*:{Port}:", Location ); // susceptible de throw FormatException
+            /// Specifing the application pool to use
+            mySite.ApplicationDefaults.ApplicationPoolName = appPoolToUse.Name;
+            /// commiting IIS changes
+            serverMgr.CommitChanges();        
+          }
+          catch (System.FormatException e) {
+            var msg = e.Message.StartsWith( "The site name cannot contain the following characters:" ) ? "Error with SiteName" : "Unexpected error";
+            Tracer.Log( msg, e );
+            return false;
+          }
+          catch (System.Exception e) {
+            Tracer.Log( "Unexpected error", e );
+            return false;
+          }
+
+          return true;
+        } )
+      );
     }
 
-    private bool CreateIISEntry2() {
-      try {
-        using(Microsoft.Web.Administration.ServerManager m = new Microsoft.Web.Administration.ServerManager()) {
-          Microsoft.Web.Administration.ApplicationPool pool = m.ApplicationPools.Add( "MyPool" );
-          Microsoft.Web.Administration.Site site = m.Sites.CreateElement( "site" );
-          site.Name = "MySite";
-          site.Id = "MySite".GetHashCode();
-
-          Microsoft.Web.Administration.Application app = site.Applications.Add( EndPoint, Location );
-          app.ApplicationPoolName = "MyPool";
-
-          m.CommitChanges();
-        }
-      }
-      catch {
-        return false;
-      }
-
-      return true;
-    }
-
-    private bool CreateIISEntry3() {
-      try {
-        //System.IntPtr accessToken = System.IntPtr.Zero;
-        //System.Security.Principal.WindowsIdentity identity = new System.Security.Principal.WindowsIdentity( accessToken );
-        //System.Security.Principal.WindowsImpersonationContext context = identity.Impersonate();
-        
-        Microsoft.Web.Administration.ServerManager serverMgr = new Microsoft.Web.Administration.ServerManager();
-        string strWebsitename = EndPoint.Replace( "/", "" );
-        string strApplicationPool = "DefaultAppPool";
-        string strhostname = "localhost"; //abc.com
-        string stripaddress = "";// ip address
-        string bindinginfo = stripaddress + ":80:" + strhostname;
-
-        //check if website name already exists in IIS
-        bool bWebsite = IsWebsiteExists( serverMgr,  strWebsitename );
-        if (!bWebsite) {
-          Microsoft.Web.Administration.Site mySite = serverMgr.Sites.Add( EndPoint, "http", bindinginfo, Location );
-          mySite.ApplicationDefaults.ApplicationPoolName = strApplicationPool;
-          mySite.TraceFailedRequestsLogging.Enabled = true;
-          mySite.TraceFailedRequestsLogging.Directory = "C:\\inetpub\\customfolder\\site";
-          serverMgr.CommitChanges();
-        }
-        else return false;
-      }
-      catch (System.UnauthorizedAccessException) { return false; }
-      catch { return false; }
-
-      return true;
-    }
-
-    private bool IsWebsiteExists(Microsoft.Web.Administration.ServerManager serverMgr, string strWebsitename) {
+    private bool WebsiteExists(Microsoft.Web.Administration.ServerManager serverMgr, string strWebsitename) {
       bool flagset = false;
       Microsoft.Web.Administration.SiteCollection sitecollection = serverMgr.Sites;
       foreach (Microsoft.Web.Administration.Site site in sitecollection) {
@@ -326,24 +364,6 @@
         }
       }
       return flagset;
-    }
-
-    private bool CreateIISEntry4() {
-      string metabasePath = "IIS://localhost/W3SVC";
-      System.DirectoryServices.DirectoryEntry w3svc = new System.DirectoryServices.DirectoryEntry( metabasePath, "angel.munoz@amma.be", "password" );
-
-      string serverBinding = ":80:localhost";
-      string homeDirectory = Location;
-
-      object[] newSite = new object[] { "", new object[] { serverBinding }, homeDirectory };
-      object webSiteId = (object) w3svc.Invoke( "CreateNewSite", newSite );
-
-      // Returns the Website ID from the Metabase
-      var id = (int) webSiteId;
-
-      Tracer.Log( "WebSiteId = " + id, MessageVerbosity.Info );
-
-      return true;
     }
     #endregion
 

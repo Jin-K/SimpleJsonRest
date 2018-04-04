@@ -51,7 +51,6 @@
       <HintPath>..\..\aakgac\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="System" />
-    <Reference Include="System.DirectoryServices" />
     <Reference Include="System.Web" />
     <Reference Include="System.Configuration" />
   </ItemGroup>
@@ -70,7 +69,10 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AuthenticateAttribute.cs" />
+    <Compile Include="Core\SafeTokenHandleStruct.cs" />
+    <Compile Include="Models\AdministratorCredentials.cs" />
     <Compile Include="Core\EventsDispatcher.cs" />
+    <Compile Include="Core\IISImpersonationDriver.cs" />
     <Compile Include="Models\LoginResponse.cs" />
     <Compile Include="Utils\Enums.cs" />
     <Compile Include="Utils\LogIO.cs" />
