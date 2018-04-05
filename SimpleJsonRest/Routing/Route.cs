@@ -46,8 +46,7 @@ namespace SimpleJsonRest.Routing {
       object[] attribs = _Callback.Method.GetCustomAttributes(typeof(AuthenticateAttribute), false);
 
       for (int i = 0; i < attribs.Length; i++) {
-        var attrib = attribs[i] as AuthenticateAttribute;
-        if (attrib != null && !attrib.IsConnected) return null; // handled in Handler.ProcessRequest finally block
+        if (attribs[i] is AuthenticateAttribute attrib && !attrib.IsConnected) return null; // handled in Handler.ProcessRequest finally block
       }
 
       // Invoke method correspondante, en déserialisant json entrant (s'il y en a) par rapport aux paramètres attendus
@@ -68,13 +67,13 @@ namespace SimpleJsonRest.Routing {
         }
         catch (System.Reflection.TargetInvocationException e) {
           // TODO : Traitement érreur venant du service appelé
-          Tracer.Log("SimpleJsonRest.Routing.Route.DeserializeAndInvoke", e);
+          Tracer.Log(e);
           throw e.InnerException;
         }
       }
       catch (Exception e) {
         // TODO : Érreur dans la déserialisation ?
-        Tracer.Log("SimpleJsonRest.Routing.Route.DeserializeAndInvoke", e);
+        Tracer.Log(e);
         throw;
       }
     }
@@ -83,10 +82,14 @@ namespace SimpleJsonRest.Routing {
       dynamic[] parametersToSerialize = new dynamic[parameters.Length];
       dynamic obj;
 
+      /// Read incoming stream (expecting json string) and convert it to dynamic object
       System.Web.HttpContext.Current.Request.InputStream.Position = 0;
       using (System.IO.StreamReader stream = new System.IO.StreamReader(System.Web.HttpContext.Current.Request.InputStream)) {
-        string jsonString = System.Text.Encoding.UTF8.GetString(System.Text.Encoding.Default.GetBytes(stream.ReadToEnd()));
-        while (Uri.UnescapeDataString(jsonString) != jsonString) jsonString = Uri.UnescapeDataString(jsonString);
+        /// Read & unescape
+        string unescaped, jsonString = System.Text.Encoding.UTF8.GetString(System.Text.Encoding.Default.GetBytes(stream.ReadToEnd()));
+        while (( unescaped = Uri.UnescapeDataString(jsonString)) != jsonString) jsonString = unescaped;
+
+        /// Letting Newtonsoft.Json trying to deserialize it
         try {
           obj = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(jsonString);
         }
@@ -96,27 +99,39 @@ namespace SimpleJsonRest.Routing {
         }
       }
 
+      // TODO Use a kind of hashset to check parameters, avoiding multiple loops like now ...
       if (obj != null) {
+        /// Collect all properties of dynamic object
         var propertyNames = new System.Collections.Generic.List<string>();
-        foreach (var p in obj.Properties()) propertyNames.Add(p.Name);
+        foreach (var p in obj.Properties()) propertyNames.Add( p.Name );
+
+        /// Iterate over parameters received as argument (required input parameters of method to call)
         for (var i = 0; i < parameters.Length; i++) {
-            var param = parameters[i];
-            Func<string, bool> findPropNameDelegate = jsonProp => jsonProp.ToLower() == param.Name.ToLower();
-            if (!propertyNames.Any(findPropNameDelegate)) throw new HandlerException($@"Json parameter ""{param.Name}"" not found"); // TODO Avoid using of LINQ
-          parametersToSerialize[i] = Deserialize(obj[propertyNames.First(findPropNameDelegate)], param);
+          var param = parameters[i];
+
+          /// Check for each required param if a collected (above) json parameter exists matching name
+          var match = "";
+          for (var j = 0; j < propertyNames.Count; j++)
+            if (param.Name.Equals( propertyNames[j], StringComparison.InvariantCultureIgnoreCase )) {
+              match = propertyNames[j];
+              break;
+            }
+          if (match == string.Empty) throw new HandlerException( $@"Json parameter ""{param.Name}"" not found" );
+
+          /// Dynamically deserialize json parameter and assigned to corresponding method input parameter
+          parametersToSerialize[i] = Deserialize( obj[match], param );
         }
       }
-
-      if (parameters.Any(p => p.ParameterType == typeof(System.Web.HttpContext))) { // TODO Avoid LINQ
-        int index = -1;
-        for (int c = 0; c < parameters.Length; c++) {
-          var param = parameters[c];
-          if (param.ParameterType.Name == "HttpContext") {
-            index = c;
-            break;
-          }
+      
+      /// If one of the method parameters is of type HttpContext ... (special case)
+      for(var c = 0; c < parameters.Length; c++) {
+        var param = parameters[c];
+#pragma warning disable CS0184 // 'is' expression's given expression is never of the provided type
+        if (param.ParameterType is System.Web.HttpContext) {
+#pragma warning restore CS0184 // 'is' expression's given expression is never of the provided type
+          parametersToSerialize[c] = System.Web.HttpContext.Current;
+          break;
         }
-        parametersToSerialize[index] = System.Web.HttpContext.Current;
       }
 
       return parametersToSerialize;
@@ -172,7 +187,7 @@ namespace SimpleJsonRest.Routing {
 
     private object FillIn(Type type, Newtonsoft.Json.Linq.JObject jToken) {
       System.Reflection.PropertyInfo matchingProperty;
-      var returnObject = Activator.CreateInstance(type); // TODO Revoir méthode instanciation ?
+      var returnObject = Activator.CreateInstance(type); // TODO Revoir méthode instanciation ? Clairement !
       foreach (var jProp in jToken.Properties())
         if ((matchingProperty = type.GetProperty(jProp.Name)) != null)
           matchingProperty.SetValue(returnObject, Deserialize(jProp.Value, matchingProperty), null);

@@ -2,7 +2,7 @@
 using System.Runtime.InteropServices;
 
 namespace SimpleJsonRest.Core {
-  class IISImpersonationDriver {
+  class AdminImitator {
     const int LOGON32_PROVIDER_DEFAULT = 0;
     const int LOGON32_LOGON_INTERACTIVE = 2;
 
@@ -23,7 +23,7 @@ namespace SimpleJsonRest.Core {
     /// <param name="username"></param>
     /// <param name="domainName"></param>
     /// <param name="password"></param>
-    internal IISImpersonationDriver(string username, string domainName, string password) {
+    internal AdminImitator(string username, string domainName, string password) {
       this.Username = username;
       this.DomainName = domainName;
       this.Password = password;
@@ -34,7 +34,7 @@ namespace SimpleJsonRest.Core {
     /// User should be local administrator
     /// </summary>
     /// <param name="credentials"></param>
-    internal IISImpersonationDriver(Models.AdministratorCredentials credentials) : this( credentials.Username, credentials.DomainName, credentials.Password ) {}
+    internal AdminImitator(IIS.ServerAdmin credentials) : this( credentials.Username, credentials.DomainName, credentials.Password ) {}
     
     // TODO If you incorporate this code into a DLL, be sure to demand FullTrust
     /// <summary>
@@ -45,27 +45,25 @@ namespace SimpleJsonRest.Core {
     /// <returns></returns>
     [System.Security.Permissions.PermissionSet( System.Security.Permissions.SecurityAction.Demand, Name = "FullTrust")]
     internal bool RunAsAdministrator(System.Threading.Tasks.Task<bool> taskToDo) {
-      SafeTokenHandleStruct safeTokenHandle;
-
       try {
-        // If logon fails
-        if (!LogonUser( Username, DomainName, Password, LOGON32_LOGON_INTERACTIVE, LOGON32_PROVIDER_DEFAULT, out safeTokenHandle)) {
+        /// If logon fails
+        if (!LogonUser( Username, DomainName, Password, LOGON32_LOGON_INTERACTIVE, LOGON32_PROVIDER_DEFAULT, out SafeTokenHandleStruct safeTokenHandle )) {
           Utils.Tracer.Log( $"Could not logon as {Username}@{DomainName} ; error code : {Marshal.GetLastWin32Error()}", Utils.MessageVerbosity.Error );
           return false;
         }
 
-        // we're connected
+        /// we're connected
         using (safeTokenHandle) {
           Utils.Tracer.Log( $"Logged in with Windows NT token \"{safeTokenHandle}\" : {Username}@{DomainName}" );
 
-          // Use the token handle returned by LogonUser
-          using (System.Security.Principal.WindowsImpersonationContext ctx = System.Security.Principal.WindowsIdentity.Impersonate(safeTokenHandle.DangerousGetHandle())) {
-            // using context will let us act as the new user
-            using(taskToDo) {
+          /// Use the token handle returned by LogonUser
+          using (System.Security.Principal.WindowsImpersonationContext ctx = System.Security.Principal.WindowsIdentity.Impersonate( safeTokenHandle.DangerousGetHandle() )) {
+            /// using context will let us act as the new user
+            using (taskToDo) {
               taskToDo.Start();
               return taskToDo.Result;
             }
-            // on Dispose/Close, we switch back to previous user
+            /// on Dispose/Close, we switch back to previous user
           }
         }
       }

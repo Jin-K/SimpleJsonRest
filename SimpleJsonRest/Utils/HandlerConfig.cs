@@ -2,7 +2,7 @@
 using System.Configuration;
 
 namespace SimpleJsonRest.Utils {
-  internal class HandlerConfig : ConfigurationSection, IConfig {
+  internal class HandlerConfig : ConfigurationSection, Core.IConfig {
 
     #region Config properties
     [ConfigurationProperty("assembly", IsRequired = false)]

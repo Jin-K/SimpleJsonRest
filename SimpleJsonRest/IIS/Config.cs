@@ -1,7 +1,7 @@
 ﻿using System.Linq;
 
-namespace SimpleJsonRest.Utils {
-  public class ConfigIIS : IConfig {
+namespace SimpleJsonRest.IIS {
+  public class Config : Core.IConfig {
 
     #region Constants
     /// <summary>
@@ -25,7 +25,7 @@ namespace SimpleJsonRest.Utils {
     #endregion
 
     #region Private members
-    private HandlerConfig innerConfig;
+    private Utils.HandlerConfig innerConfig;
     private int portToUse;
     private string serverToUse;
     #endregion
@@ -36,7 +36,7 @@ namespace SimpleJsonRest.Utils {
     /// </summary>
     /// <param name="server"></param>
     /// <param name="port"></param>
-    public ConfigIIS(string server = DEFAULT_SERVER, int port = DEFAULT_PORT) {
+    public Config(string server = DEFAULT_SERVER, int port = DEFAULT_PORT) {
       Construct(server, port);
     }
 
@@ -45,7 +45,7 @@ namespace SimpleJsonRest.Utils {
     /// </summary>
     /// <param name="port"></param>
     /// <param name="server"></param>
-    public ConfigIIS(int port, string server = DEFAULT_SERVER) {
+    public Config(int port, string server = DEFAULT_SERVER) {
       Construct(server, port);
     }
     #endregion
@@ -95,37 +95,25 @@ namespace SimpleJsonRest.Utils {
     /// </summary>
     public string Location { get; set; }
 
-    public Models.AdministratorCredentials Credentials { get; set; }
+    public IIS.ServerAdmin? Credentials { get; set; }
     #endregion
 
     #region Methods
     private void Construct(string server, int port) {
       if (port == DEFAULT_PORT_SSL) throw new System.NotSupportedException("This port is reserved for SSL, which is still not supported.");
-      innerConfig = new HandlerConfig();
+      innerConfig = new Utils.HandlerConfig();
 
       serverToUse = server;
       portToUse = port;
 
       // get location of caller
       System.Reflection.MethodBase callingMethod = new System.Diagnostics.StackTrace().GetFrame(2).GetMethod();
-      innerConfig.AssemblyPath = callingMethod.DeclaringType.Assembly.CodeBase;
+      //innerConfig.AssemblyPath = callingMethod.DeclaringType.Assembly.CodeBase; // TODO remove if next line is ok
+      innerConfig.AssemblyPath = callingMethod.DeclaringType.Assembly.Location;
     }
-
-    // TODO Do we need this method ? If yes ==> find a way to update the web.config file (couldn't work with calls coming from another way than IIS)
+    
     internal bool UpdateWebConfigFile() {
       throw new System.NotImplementedException( "OUPS" );
-      //try {
-      //  var config = System.Web.Configuration.WebConfigurationManager.OpenWebConfiguration( "~" );
-      //  HandlerConfig section = config.GetSection( "json4Rest" ) as HandlerConfig;
-      //  section.AssemblyPath = innerConfig.AssemblyPath;
-      //  section.Service = innerConfig.Service;
-      //  section.LogPath = innerConfig.LogPath;
-      //  config.Save();
-      //  return true;
-      //}
-      //catch {
-      //  return false;
-      //}
     }
 
     /// <summary>
@@ -139,24 +127,24 @@ namespace SimpleJsonRest.Utils {
     }
 
     /// <summary>
-    /// Create website folder and register website in IIS with specified values (check SimpleJsonRest.Utils.ConfigIIS's accessible properties)
+    /// Create website folder and register website in IIS with specified values (check SimpleJsonRest.Utils.Config's accessible properties)
     /// Default values for "server" and "port" are respectively "localhost" and 80.
     /// Set up a value for Credentials property if you want the library to auto-register a web site entry in IIS, 
     /// otherwise only the target folder for IIS will be created with minimum required files
     /// </summary>
     /// <returns></returns>
-    public static bool RegisterInIIS(string service, string endpoint, string location, string logPath = ConfigIIS.DEFAULT_LOG_PATH) {
-      return RegisterInIIS(ConfigIIS.DEFAULT_SERVER, ConfigIIS.DEFAULT_PORT, service, endpoint, location, logPath);
+    public static bool RegisterInIIS(string service, string endpoint, string location, string logPath = Config.DEFAULT_LOG_PATH) {
+      return RegisterInIIS(Config.DEFAULT_SERVER, Config.DEFAULT_PORT, service, endpoint, location, logPath);
     }
 
     /// <summary>
-    /// Create website folder and register website in IIS with specified values (check SimpleJsonRest.Utils.ConfigIIS's accessible properties).
+    /// Create website folder and register website in IIS with specified values (check SimpleJsonRest.Utils.Config's accessible properties).
     /// Set up a value for Credentials property if you want the library to auto-register a web site entry in IIS, 
     /// otherwise only the target folder for IIS will be created with minimum required files
     /// </summary>
     /// <returns></returns>
-    public static bool RegisterInIIS(string server, int port, string service, string endpoint, string location, string logPath = ConfigIIS.DEFAULT_LOG_PATH) {
-      var config = new ConfigIIS(server, port) {
+    public static bool RegisterInIIS(string server, int port, string service, string endpoint, string location, string logPath = Config.DEFAULT_LOG_PATH) {
+      var config = new Config(server, port) {
         Service = service,
         SiteName = endpoint,
         Location = location,
@@ -171,9 +159,9 @@ namespace SimpleJsonRest.Utils {
     /// otherwise only the target folder for IIS will be created with minimum required files
     /// </summary>
     /// <returns></returns>
-    public static bool RegisterInIIS(ConfigIIS config) {
+    public static bool RegisterInIIS(Config config) {
       if (config.LogPath == null) config.LogPath = DEFAULT_LOG_PATH;
-      Tracer.SetupLog4Net( config.LogPath );
+      Utils.Tracer.SetupLog4Net( config.LogPath );
       
       var destFolder = config.Location;
       if (!CheckCreate( destFolder, out string error)) return false;
@@ -211,11 +199,11 @@ namespace SimpleJsonRest.Utils {
         }
       }
       catch (System.UnauthorizedAccessException) {
-        Tracer.Log( $"No access to write \"{destFile}\"", MessageVerbosity.Error );
+        Utils.Tracer.Log( $"No access to write \"{destFile}\"", Utils.MessageVerbosity.Error );
         return false;
       }
 
-      /// No credentials specified ? ==> Guessing that we're not 
+      /// No credentials specified ? ==> Guessing that we're not
       if (config.Credentials == null) return true;
 
       return config.CreateIISEntry();
@@ -228,14 +216,14 @@ namespace SimpleJsonRest.Utils {
     /// <param name="password"></param>
     /// <param name="domainName"></param>
     public void SetUpCredentials(string username, string password, string domainName) {
-      SetUpCredentials( new Models.AdministratorCredentials( username , password, domainName) );
+      SetUpCredentials( new IIS.ServerAdmin( username , password, domainName) );
     }
 
     /// <summary>
     /// Setup administrator credentials to auto-register an entry in IIS (Internet Information Services).
     /// </summary>
     /// <param name="credentials"></param>
-    public void SetUpCredentials(Models.AdministratorCredentials credentials) {
+    public void SetUpCredentials(IIS.ServerAdmin credentials) {
       this.Credentials = credentials;
     }
 
@@ -254,7 +242,7 @@ namespace SimpleJsonRest.Utils {
         }
         catch (System.UnauthorizedAccessException e) {
           errorMessage = e.Message;
-          Tracer.Log( $@"Exception in ConfigIIS.CheckCreate for this folder: ""{directoryPath}""", e );
+          Utils.Tracer.Log( $@"Exception in Config.CheckCreate for this folder: ""{directoryPath}""", e );
           return false;
         }
 
@@ -268,27 +256,22 @@ namespace SimpleJsonRest.Utils {
           
           // Create the file to write to.
           using(System.IO.StreamWriter writer = System.IO.File.CreateText(destinationFile)) {
-
-            // convert Assembly Path
-            var assemblyPath = AssemblyPath;
-            assemblyPath = assemblyPath.StartsWith( "file:///" ) ? assemblyPath.Substring( 8 ) : assemblyPath;
-            assemblyPath = assemblyPath.Replace( "/", "\\\\" );
-
+            
             // Append lines
-            writer.WriteLine( "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n" );
+            writer.WriteLine( "<?xml version=\"1.0\" encoding=\"utf-8\"?>" );
             writer.WriteLine( "<!--" );
             writer.WriteLine( "  For more information on how to configure your ASP.NET application, please visit" );
-            writer.WriteLine( "  https://go.microsoft.com/fwlink/?LinkId=169433\n  -->\n\n" );
-            writer.WriteLine( "<configuration>\n" );
+            writer.WriteLine( "  https://go.microsoft.com/fwlink/?LinkId=169433\n  -->" );
+            writer.WriteLine( "<configuration>" );
             writer.WriteLine( "  <configSections>" );
             writer.WriteLine( "    <section name=\"json4Rest\" type=\"SimpleJsonRest.Utils.HandlerConfig\" allowLocation=\"true\" allowDefinition=\"Everywhere\" />" );
             writer.WriteLine( "  </configSections>" );
-            writer.WriteLine($"  <json4Rest assembly=\"{assemblyPath}\" service=\"{Service}\" logPath=\"{LogPath}\" />" );
+            writer.WriteLine($"  <json4Rest assembly=\"{AssemblyPath.Replace("\\", "\\\\")}\" service=\"{Service}\" logPath=\"{LogPath}\" />" );
             writer.WriteLine( "  <system.webServer>" );
             writer.WriteLine( "    <handlers>" );
             writer.WriteLine( "      <add name=\"Handler\" path=\"*\" verb=\"*\" type=\"SimpleJsonRest.Handler\" />" );
             writer.WriteLine( "    </handlers>" );
-            writer.WriteLine( "  </system.webServer>\n" );
+            writer.WriteLine( "  </system.webServer>" );
             writer.WriteLine( "</configuration>" );
           }
         }
@@ -301,15 +284,17 @@ namespace SimpleJsonRest.Utils {
     }
 
     private bool CreateIISEntry() {
+      /// We need credentials to manipulate IIS
+      if (!Credentials.HasValue) return false;
 
-      var iisDriver = new Core.IISImpersonationDriver( this.Credentials );
+      var iisDriver = new Core.AdminImitator( Credentials.Value );
 
       return iisDriver.RunAsAdministrator(
         new System.Threading.Tasks.Task<bool>( () => {
           /// Prepare server manager && Check if website name already exists in IIS
           Microsoft.Web.Administration.ServerManager serverMgr = new Microsoft.Web.Administration.ServerManager();
-          if (WebsiteExists( serverMgr, SiteName )) {
-            Tracer.Log( $"Website ({SiteName}) already exists.", MessageVerbosity.Error );
+          if (WebSiteExists( serverMgr, SiteName )) {
+            Utils.Tracer.Log( $"Website ({SiteName}) already exists.", Utils.MessageVerbosity.Error );
             return false;
           }
           
@@ -338,11 +323,11 @@ namespace SimpleJsonRest.Utils {
           }
           catch (System.FormatException e) {
             var msg = e.Message.StartsWith( "The site name cannot contain the following characters:" ) ? "Error with SiteName" : "Unexpected error";
-            Tracer.Log( msg, e );
+            Utils.Tracer.Log( msg, e );
             return false;
           }
           catch (System.Exception e) {
-            Tracer.Log( "Unexpected error", e );
+            Utils.Tracer.Log( "Unexpected error", e );
             return false;
           }
 
@@ -351,19 +336,12 @@ namespace SimpleJsonRest.Utils {
       );
     }
 
-    private bool WebsiteExists(Microsoft.Web.Administration.ServerManager serverMgr, string strWebsitename) {
-      bool flagset = false;
-      Microsoft.Web.Administration.SiteCollection sitecollection = serverMgr.Sites;
-      foreach (Microsoft.Web.Administration.Site site in sitecollection) {
-        if (site.Name == strWebsitename.ToString()) {
-          flagset = true;
-          break;
-        }
-        else {
-          flagset = false;
-        }
-      }
-      return flagset;
+    private bool WebSiteExists(Microsoft.Web.Administration.ServerManager serverMgr, string strWebsitename) {
+      Microsoft.Web.Administration.SiteCollection sitesCollection = serverMgr.Sites;
+      for (var i = 0; i < sitesCollection.Count; i++)
+        if (sitesCollection[i].Name == strWebsitename.ToString())
+          return true;
+      return false;
     }
     #endregion
 

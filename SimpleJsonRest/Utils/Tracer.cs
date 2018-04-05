@@ -130,19 +130,27 @@ namespace SimpleJsonRest.Utils {
       InnerLog( message, type, System.Reflection.Assembly.GetCallingAssembly() == typeof( Tracer ).Assembly );
     }
 
+    internal static void Log(Exception exception) {
+      /// Get calling method fullname
+      var prevMethod = new System.Diagnostics.StackFrame( 1 ).GetMethod();
+      var methodName = $"{prevMethod.DeclaringType}.{prevMethod.Name}";
+      /// Reuse static public method
+      Log( methodName, exception );
+    }
+
     private static void InnerLog(string message, MessageVerbosity type, bool isInnerCall, Exception e = null) {
       if (Loaded) {
         switch(type) {
           case MessageVerbosity.Debug:
-            Tracer.Logger.Debug( message );
+            Logger.Debug( message );
             break;
           case MessageVerbosity.Info:
-            Tracer.Logger.Info( message );
+            Logger.Info( message );
             break;
           case MessageVerbosity.Error:
             if (isInnerCall) OnTracerError?.Invoke( message );
-            if (e != null)  Tracer.Logger.Error( message, e );
-            else            Tracer.Logger.Error( message );
+            if (e != null)  Logger.Error( message, e );
+            else            Logger.Error( message );
             break;
         }
       }

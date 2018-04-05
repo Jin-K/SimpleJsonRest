@@ -116,7 +116,7 @@ namespace SimpleJsonRest.Utils {
           }
           catch (System.Exception e) {
             errorMessage = e.Message;
-            Tracer.Log( $@"Exception in ConfigIIS.CheckCreate for this folder: ""{directory.ToString()}""", e );
+            Tracer.Log( $@"Exception in Config.CheckCreate for this folder: ""{directory.ToString()}""", e );
             return false;
           }
         }
