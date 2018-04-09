@@ -1,21 +1,19 @@
 ﻿using SimpleJsonRest.Utils;
-using System;
-using System.Linq;
-using System.Web;
-
 namespace SimpleJsonRest {
-  public class Handler : IHttpHandler, System.Web.SessionState.IRequiresSessionState {
+  public class Handler : System.Web.IHttpHandler, System.Web.SessionState.IRequiresSessionState {
+    public static HandlerState State { get; internal set; } = HandlerState.StartPointIsIIS;
 
-    /// <summary>
-    /// Actual state of the handler, check HandlerState enum to know different states it could have
-    /// </summary>
-    public static HandlerState State => HandlerState.Undefined;
+    private static IAuthentifiedService service;
+    private IAuthentifiedService Service => service ?? LoadService();
 
-    static IAuthentifiedService service;
-    IAuthentifiedService Service => service ?? LoadService();
+    private static Route[] router;
+    private Route[] Router => router ?? PrepareNLoadServiceRoutes(Service);
 
-    static Routing.Route[] router;
-    Routing.Route[] Router => router ?? PrepareNLoadServiceRoutes(Service);
+    private static string endpoint;
+    private string EndPoint => endpoint ?? LoadEndPointFromConfig();
+
+    private static Utils.HandlerConfig config;
+    private Utils.HandlerConfig Config => config ?? LoadConfig();
 
     public bool IsReusable {
       // Return false in case your Managed Handler cannot be reused for another request.
@@ -23,8 +21,8 @@ namespace SimpleJsonRest {
       get { return false; }
     }
 
-    public void ProcessRequest(HttpContext context) {
-      var url_part = GetUrl(context.Request.RawUrl, context.Request.ApplicationPath);
+    public void ProcessRequest(System.Web.HttpContext context) {
+      var url_part = GetUrl(context.Request.RawUrl);
 
       // Pour tests avec page html
       if (url_part.ToLower().EndsWith(".html") || url_part.ToLower().EndsWith(".htm")) {
@@ -41,8 +39,8 @@ namespace SimpleJsonRest {
       }
 
       var ip = context.Request.ServerVariables["REMOTE_ADDR"];
-
-      Tracer.Log($" --- || Start request || {ip} || path: {url_part} || --- {DateTime.Now.ToString()}    ---     <--");
+      
+      Utils.Tracer.Log( $" > > > > > > Start request || {ip} || path: {url_part} || --- {System.DateTime.Now} ---->" );
 
       context.Response.Clear();
 
@@ -53,7 +51,7 @@ namespace SimpleJsonRest {
 
         foreach (var route in Router)
           if (route.Check(url_part)) {
-            Tracer.Log("route prise : " + route.Path);
+            Utils.Tracer.Log("route prise : " + route.Path);
             json_response = route.Execute();
             return;
           }
@@ -62,7 +60,7 @@ namespace SimpleJsonRest {
         json_response = new { error = "Unknown path" };
         context.Response.StatusCode = (int) System.Net.HttpStatusCode.NotFound;
       }
-      catch (Exception e) {
+      catch (System.Exception e) {
         // TODO Complètement revoir la gestion des exceptions ... ==> FaultException, FaultException2 ? Pourquoi j'ai utilisé ces classes pourries ?
         string exceptionType = e.GetType().Name;
         switch (exceptionType) {
@@ -76,7 +74,7 @@ namespace SimpleJsonRest {
             context.Response.StatusCode = (int)_e2.StatusCode;
             json_response = new { error = _e2.Message };
             break;
-          case "TargetInvocationException":
+          case "TargetInvocationException": // exception coming from a reflected assembly method
             context.Response.StatusCode = (int) System.Net.HttpStatusCode.InternalServerError;
             json_response = new {
               error = (e as System.Reflection.TargetInvocationException).InnerException.Message,
@@ -94,10 +92,10 @@ namespace SimpleJsonRest {
             break;
         }
 
-        Tracer.Log("IDPHandler.ProcessRequest " + e);
+        Utils.Tracer.Log("IDPHandler.ProcessRequest " + e);
       }
       finally {
-        Tracer.Log($" --- || End request || {ip} || path: {url_part} || --- {DateTime.Now.ToString()}     ---     <--");
+        Utils.Tracer.Log( $" < < < < < < < End request || {ip} || path: {url_part} || --- {System.DateTime.Now} <----" );
 
         /// If there is a response
         if (json_response != null)  context.Reply( json_response );
@@ -122,26 +120,30 @@ namespace SimpleJsonRest {
     /// <param name="url"></param>
     /// <param name="appPath"></param>
     /// <returns></returns>
-    string GetUrl(string url, string appPath) {
-      if (appPath.Length > 1 && appPath.Trim() != string.Empty) {
-        if (appPath.EndsWith("/")) appPath = appPath.Remove(appPath.Length - 1);
-        int pos = url.IndexOf(appPath);
-        if (pos >= 0) url = url.Substring(0, pos) + url.Substring(pos + appPath.Length);
-        if (!url.StartsWith("/")) url = "/" + url;
-      }
-      if (url.Length > 1 && url.EndsWith("/")) url = url.Remove(url.Length - 1);
-      return url;
+    //private string GetUrl(string url, string appPath) {
+    //  if (appPath.Length > 1 && appPath.Trim() != string.Empty) {
+    //    if (appPath.EndsWith("/")) appPath = appPath.Remove(appPath.Length - 1);
+    //    int pos = url.IndexOf(appPath);
+    //    if (pos >= 0) url = url.Substring(0, pos) + url.Substring(pos + appPath.Length);
+    //    if (!url.StartsWith("/")) url = "/" + url;
+    //  }
+    //  if (url.Length > 1 && url.EndsWith("/")) url = url.Remove(url.Length - 1);
+    //  return url;
+    //}
+
+    private string GetUrl(string rawUrl) {
+      if (EndPoint.Length > 0) rawUrl = rawUrl.Replace( EndPoint, "" );
+      return rawUrl.Replace( "//", "/" );
     }
 
-    Routing.Route[] PrepareNLoadServiceRoutes(IAuthentifiedService service) {
+    private Route[] PrepareNLoadServiceRoutes(IAuthentifiedService service) {
       var type = service.GetType();
-
-      var routes = new System.Collections.Generic.List<Routing.Route>();
       var methods = type.GetMethods();
-
+      var routes = new System.Collections.Generic.List<Route>();
+      
       foreach(var m in methods) {
         if (m.IsPublic && m.DeclaringType == type)
-          routes.Add( new Routing.Route( m, service ) );
+          routes.Add( new Route( m, service ) );
       }
 
       return router = routes.ToArray();
@@ -151,23 +153,30 @@ namespace SimpleJsonRest {
     /// Loads found service and returns it
     /// </summary>
     /// <returns></returns>
-    IAuthentifiedService LoadService() {
-      Utils.HandlerConfig config = null;
+    private IAuthentifiedService LoadService() {
+      if (Config == null) throw new HandlerException("No Service config value found", System.Net.HttpStatusCode.NotImplemented);
+      return service = System.Activator.CreateInstance(Config.ServiceType) as IAuthentifiedService;
+    }
+
+    private string LoadEndPointFromConfig() {
+      return endpoint = Config.EndPoint ?? "";
+    }
+
+    private Utils.HandlerConfig LoadConfig() {
       try {
-        config = System.Web.Configuration.WebConfigurationManager.GetSection("json4Rest") as Utils.HandlerConfig;
+        config = System.Web.Configuration.WebConfigurationManager.GetSection( "json4Rest" ) as Utils.HandlerConfig;
       }
-      catch (Exception e) {
-        throw new HandlerException($"Error with SimpleJsonRest's config section: {e.Message}");
+      catch (System.Exception e) {
+        throw new HandlerException( $"Error with SimpleJsonRest's config section: {e.Message}" );
       }
-      if (config == null) throw new HandlerException("No Service config value found", System.Net.HttpStatusCode.NotImplemented);
-      return Handler.service = Activator.CreateInstance(config.ServiceType) as IAuthentifiedService;
+      return config;
     }
   }
 
   /// <summary>
   /// Defines SimpleJsonRest behavior
   /// </summary>
-  public enum HandlerState {
+  public enum HandlerState { // TODO Use it and set Handler.State !!
     StartPointIsIIS,
     Integrated,
     Undefined

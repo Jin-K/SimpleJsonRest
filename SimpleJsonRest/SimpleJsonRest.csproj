@@ -39,11 +39,6 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="log4net, Version=2.0.8.0, Culture=neutral, PublicKeyToken=669e0ddf0bb1aa2a, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>lib\log4net.dll</HintPath>
-      <EmbedInteropTypes>False</EmbedInteropTypes>
-    </Reference>
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="Microsoft.Web.Administration, Version=7.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL" />
     <Reference Include="Newtonsoft.Json, Version=6.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
@@ -69,10 +64,13 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AuthenticateAttribute.cs" />
+    <Compile Include="Core\Log\FileLogger.cs" />
+    <Compile Include="Core\Log\LogBase.cs" />
     <Compile Include="Core\SafeTokenHandleStruct.cs" />
     <Compile Include="IIS\AdministratorCredentials.cs" />
     <Compile Include="Core\EventsDispatcher.cs" />
     <Compile Include="Core\AdminImitator.cs" />
+    <Compile Include="Core\Json\Todo.cs" />
     <Compile Include="Models\LoginResponse.cs" />
     <Compile Include="Utils\Enums.cs" />
     <Compile Include="Utils\LogIO.cs" />
@@ -82,7 +80,7 @@
     <Compile Include="Handler.cs" />
     <Compile Include="IAuthentifiedService.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Routing\Route.cs" />
+    <Compile Include="Route.cs" />
     <Compile Include="Utils\HandlerConfig.cs" />
     <Compile Include="Core\IConfig.cs" />
     <Compile Include="Utils\Tracer.cs" />

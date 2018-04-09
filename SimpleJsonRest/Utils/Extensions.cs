@@ -4,6 +4,28 @@ namespace SimpleJsonRest.Utils {
 
   static class Extensions {
 
+    internal static bool CheckCreate(string directoryPath, out string errorMessage) {
+      errorMessage = "";
+
+      var directoryToCheck = System.IO.Directory.GetParent( directoryPath );
+      if (!directoryToCheck.Exists) {
+        errorMessage = "Parent folder doesn't exist.";
+        return false;
+      }
+
+      if (System.IO.Directory.Exists( directoryPath )) return true;
+
+      try {
+        System.IO.Directory.CreateDirectory( directoryPath );
+        return true;
+      }
+      catch (System.UnauthorizedAccessException e) {
+        errorMessage = e.Message;
+        Tracer.Log( $@"Exception in Config.CheckCreate for this folder: ""{directoryPath}""", e );
+        return false;
+      }
+    }
+
     /// <summary>
     /// Returns object as a json string
     /// </summary>
@@ -128,7 +150,7 @@ namespace SimpleJsonRest.Utils {
     // Depuis que j'ai passé le truk à .NET framework 4 au lieu de .NET Framework 4.5
     // Plusieurs fonctions n'étaient plus définies
     // TODO: Voir s'il y a moyen de compiler (à l'avenir) pour plusieurs version du framework avec les statements #if NET20, NET30, etc
-    public static T GetCustomAttribute<T>(this System.Reflection.MethodInfo method) where T : System.Attribute {
+    internal static T GetCustomAttribute<T>(this System.Reflection.MethodInfo method) where T : System.Attribute {
       object[] attributes = method.GetCustomAttributes(false);
       return attributes.OfType<T>().FirstOrDefault();
     }
