@@ -1,10 +1,13 @@
-﻿namespace SimpleJsonRest.Core.Log {
+﻿using SimpleJsonRest.Utils;
+
+namespace SimpleJsonRest.Core.Log {
   internal class FileLogger : LogBase {
     private readonly string _filePath;
 
     internal FileLogger(string filePath) {
       _filePath = filePath;
-      if (!Utils.Extensions.CheckCreate( System.IO.Path.GetDirectoryName( filePath ), out string errMessage))
+      var logsDir = new System.IO.DirectoryInfo( System.IO.Path.GetDirectoryName( filePath ) );
+      if (!logsDir.CheckCreate(out string errMessage, true ))
         throw new System.Exception( errMessage );
     }
 

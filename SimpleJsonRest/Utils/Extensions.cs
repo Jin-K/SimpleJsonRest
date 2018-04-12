@@ -3,29 +3,71 @@
 namespace SimpleJsonRest.Utils {
 
   static class Extensions {
-
-    internal static bool CheckCreate(string directoryPath, out string errorMessage) {
-      errorMessage = "";
-
-      var directoryToCheck = System.IO.Directory.GetParent( directoryPath );
-      if (!directoryToCheck.Exists) {
-        errorMessage = "Parent folder doesn't exist.";
-        return false;
-      }
-
-      if (System.IO.Directory.Exists( directoryPath )) return true;
-
+    /// <summary>
+    /// Sets specified "System.Security.AccessControl.FileSystemRights rights" for specified "System.Security.Principal.IdentityReference identity"
+    /// </summary>
+    /// <param name="directory"></param>
+    /// <param name="identity"></param>
+    /// <param name="rights"></param>
+    /// <returns></returns>
+    private static bool SetPermissions(this System.IO.DirectoryInfo directory, System.Security.Principal.IdentityReference identity, System.Security.AccessControl.FileSystemRights rights = System.Security.AccessControl.FileSystemRights.FullControl) {
       try {
-        System.IO.Directory.CreateDirectory( directoryPath );
+        var dirSecu = directory.GetAccessControl();
+        var fsAccessRule = new System.Security.AccessControl.FileSystemAccessRule(
+            identity,
+            rights,
+            System.Security.AccessControl.InheritanceFlags.ObjectInherit | System.Security.AccessControl.InheritanceFlags.ContainerInherit,
+            System.Security.AccessControl.PropagationFlags.None,
+            System.Security.AccessControl.AccessControlType.Allow
+          );
+
+        dirSecu.AddAccessRule( fsAccessRule );
+        directory.SetAccessControl( dirSecu );
+
         return true;
       }
-      catch (System.UnauthorizedAccessException e) {
-        errorMessage = e.Message;
-        Tracer.Log( $@"Exception in Config.CheckCreate for this folder: ""{directoryPath}""", e );
+      catch (System.Exception e) {
+        Tracer.Log( $@"Exception in SimpleJsonRest.Utils.Extensions.SetPermissions for this folder: ""{directory}""", e );
         return false;
       }
     }
+    
+    /// <summary>
+    /// Checks if directory exist, and tries to create it if it is not the case (granting full right to everyone)
+    /// </summary>
+    /// <param name="directory"></param>
+    /// <param name="errorMessage"></param>
+    /// <returns></returns>
+    internal static bool CheckCreate(this System.IO.DirectoryInfo directory, out string errorMessage, bool needsPermissions = false) {
+      errorMessage = "";
 
+      var parent = directory.Parent;
+      if (!parent.Exists && !parent.CheckCreate(out string subError, needsPermissions)) {
+        errorMessage += $"Parent folder ({parent}) doesn't exist and couldn't be recursively created{System.Environment.NewLine}{subError}";
+        return false;
+      }
+
+      if (directory.Exists) return true;
+
+      try {
+        directory.Create();
+
+        if (!needsPermissions) return true;
+
+        #region Set full control permissions into folder 4 "Everyone"
+        // get Everyone identity from system
+        var identity = new System.Security.Principal.SecurityIdentifier( System.Security.Principal.WellKnownSidType.WorldSid, null );
+        // give full control
+        return directory.SetPermissions( identity );
+        #endregion
+      }
+      catch (System.UnauthorizedAccessException e) {
+        errorMessage = e.Message;
+        Tracer.Log( $@"Exception in SimpleJsonRest.Utils.Extensions.CheckCreate for this folder: ""{directory}""", e );
+        return false;
+      }
+    }
+    
     /// <summary>
     /// Returns object as a json string
     /// </summary>

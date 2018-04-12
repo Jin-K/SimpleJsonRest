@@ -1,4 +1,6 @@
-﻿namespace SimpleJsonRest.IIS {
+﻿using SimpleJsonRest.Utils;
+
+namespace SimpleJsonRest.IIS {
   public class Config : Core.IConfig {
 
     #region Constants
@@ -91,6 +93,8 @@
     /// Location for IIS web folder (where /web.config and /bin/SimpleJsonRest.dll will be placed)
     /// </summary>
     public string Location { get; set; }
+    
+    internal System.Version NewtonsoftJsonVersion { get; private set; } = new System.Version( 6, 0, 0, 0 );
 
     public ServerAdmin? Credentials { get; set; }
     #endregion
@@ -98,7 +102,7 @@
     #region Methods
     private void Construct(string server, int port) {
       if (port == DEFAULT_PORT_SSL) throw new System.NotSupportedException("This port is reserved for SSL, which is still not supported.");
-      _innerConfig = new Utils.HandlerConfig();
+      _innerConfig = new HandlerConfig();
 
       _serverToUse = server;
       _portToUse = port;
@@ -153,46 +157,49 @@
     /// <returns></returns>
     public static bool RegisterInIIS(Config config) {
       if (config.LogPath == null) config.LogPath = DEFAULT_LOG_PATH;
-      //Utils.Tracer.SetupLog4Net( config.LogPath );
-      Utils.Tracer.SetupLogger( System.IO.Path.Combine(config.Location, config.LogPath) );
-
-      var destFolder = config.Location;
-      if (!Utils.Extensions.CheckCreate( destFolder, out string _)) return false;
-      if (!config.CreateWebConfigFile($"{destFolder}\\web.config") ) return false;
+      Tracer.SetupLogger( System.IO.Path.Combine(config.Location, config.LogPath) );
       
-      destFolder += "\\bin";
-      if (!Utils.Extensions.CheckCreate( destFolder, out _ )) return false;
+      var configFile = new System.IO.FileInfo( $"{config.Location}\\web.config" );
+      var webRootFolder = configFile.Directory;
+
+      if (!webRootFolder.CheckCreate( out _ )) return false;
+      
+      var webBinFolder = new System.IO.DirectoryInfo( $"{webRootFolder}\\bin" );
+      
+      if (!webBinFolder.CheckCreate(out _)) return false;
 
       var currentAssembly = System.Reflection.Assembly.GetExecutingAssembly();
       
-      // TODO Find a way to fix the following problem:
-      // some of the assemblies required by SimpleJsonRest (requiredAssemblies4lib) could be overloaded by assemblies already loaded by the calling assembly
-      // In that case  ==> the following script could find the location of the assembly loaded by the calling assembly, 
-      //                   not the one that SimpleJsonRest requires. And that's a very big problem because we will be copying the bad dll (not same version number)
-      //               ==> When IIS or w3wp.exe calls our library --> BOOM !!!! Error: dll not found (because we are probably requiring a different version)
       var requiredAssemblies4Lib = currentAssembly.GetReferencedAssemblies();
       var dllPath = currentAssembly.Location;
-      var destFile = $"{destFolder}\\SimpleJsonRest.dll";
+      var destFile = $"{webBinFolder}\\SimpleJsonRest.dll";
       try {
         // Copy main dll (SimpleJsonRest)
         System.IO.File.Copy(dllPath, destFile, true);
 
         // Copy log4net & Newtonsoft.json dll
         foreach (var ass in requiredAssemblies4Lib) {
-          var assName = ass.FullName;
-          if (assName.Contains( "Newtonsoft.Json, Version=6.0.0.0" )) {
-            var dllLocation = System.Reflection.Assembly.Load( ass ).Location;
-            var dllDestination = $"{destFolder}\\{System.IO.Path.GetFileName( dllLocation )}";
-            if (!System.IO.File.Exists( dllDestination ))
-              System.IO.File.Copy( dllLocation, dllDestination, true );
+          if (ass.FullName.Contains( "Newtonsoft.Json, Version=6.0.0.0" )) {
+            var assembly = System.Reflection.Assembly.Load( ass );
+            var foundVersion = assembly.GetName().Version;
+            var dllLocation = assembly.Location;
+
+            if (config.NewtonsoftJsonVersion != foundVersion)
+              config.NewtonsoftJsonVersion = foundVersion;
+
+            var dllDestination = $"{webBinFolder}\\{System.IO.Path.GetFileName( dllLocation )}";
+            System.IO.File.Copy( dllLocation, dllDestination, true );
             break;
           }
         }
       }
       catch (System.UnauthorizedAccessException) {
-        Utils.Tracer.Log( $"No access to write \"{destFile}\"", Utils.MessageVerbosity.Error );
+        Tracer.Log( $"No access to write \"{destFile}\"", MessageVerbosity.Error );
         return false;
       }
+
+      // Create web.config file
+      if (!config.CreateWebConfigFile( configFile )) return false;
 
       // No credentials specified ? ==> Guessing that we're not
       if (config.Credentials == null) return true;
@@ -218,13 +225,10 @@
       Credentials = credentials;
     }
 
-    private bool CreateWebConfigFile( string destinationFile ) {
+    private bool CreateWebConfigFile( System.IO.FileInfo destinationFile ) {
       try {
-        // If file don't exists
-        if (System.IO.File.Exists(destinationFile)) return true;
-        
         // Create the file to write to.
-        using(System.IO.StreamWriter writer = System.IO.File.CreateText(destinationFile)) {
+        using(System.IO.StreamWriter writer = destinationFile.CreateText()) {
             
           // Append lines
           writer.WriteLine( "<?xml version=\"1.0\" encoding=\"utf-8\"?>" );
@@ -241,6 +245,19 @@
           writer.WriteLine( "      <add name=\"Handler\" path=\"*\" verb=\"*\" type=\"SimpleJsonRest.Handler\" />" );
           writer.WriteLine( "    </handlers>" );
           writer.WriteLine( "  </system.webServer>" );
+
+          // Other version than 6.0.0.0 ? Make assembly-binding
+          if (NewtonsoftJsonVersion.Major != 6 || NewtonsoftJsonVersion.Minor + NewtonsoftJsonVersion.Build + NewtonsoftJsonVersion.Revision > 0) {
+            writer.WriteLine( "  <runtime>" );
+            writer.WriteLine( "    <assemblyBinding xmlns=\"urn:schemas-microsoft-com:asm.v1\">" );
+            writer.WriteLine( "      <dependentAssembly>" );
+            writer.WriteLine( "        <assemblyIdentity name=\"Newtonsoft.Json\" publicKeyToken=\"30ad4fe6b2a6aeed\" culture=\"neutral\" />" );
+            writer.WriteLine( "        <bindingRedirect oldVersion=\"6.0.0.0\" newVersion=\"9.0.0.0\" />" );
+            writer.WriteLine( "      </dependentAssembly>" );
+            writer.WriteLine( "    </assemblyBinding>" );
+            writer.WriteLine( "  </runtime>" );
+          }
+
           writer.WriteLine( "</configuration>" );
         }
 
@@ -262,7 +279,7 @@
           // Prepare server manager && Check if website name already exists in IIS
           Microsoft.Web.Administration.ServerManager serverMgr = new Microsoft.Web.Administration.ServerManager();
           if (WebSiteExists( serverMgr, SiteName )) {
-            Utils.Tracer.Log( $"Website ({SiteName}) already exists.", Utils.MessageVerbosity.Error );
+            Tracer.Log( $"Website ({SiteName}) already exists.", MessageVerbosity.Error );
             return false;
           }
           
@@ -291,11 +308,11 @@
           }
           catch (System.FormatException e) {
             var msg = e.Message.StartsWith( "The site name cannot contain the following characters:" ) ? "Error with SiteName" : "Unexpected error";
-            Utils.Tracer.Log( msg, e );
+            Tracer.Log( msg, e );
             return false;
           }
           catch (System.Exception e) {
-            Utils.Tracer.Log( "Unexpected error", e );
+            Tracer.Log( "Unexpected error", e );
             return false;
           }
 

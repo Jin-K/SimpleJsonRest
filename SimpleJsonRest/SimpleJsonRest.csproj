@@ -71,6 +71,7 @@
     <Compile Include="Core\EventsDispatcher.cs" />
     <Compile Include="Core\AdminImitator.cs" />
     <Compile Include="Core\Json\Todo.cs" />
+    <Compile Include="IIS\Deployer.cs" />
     <Compile Include="Models\LoginResponse.cs" />
     <Compile Include="Utils\Enums.cs" />
     <Compile Include="Utils\LogIO.cs" />
